@@ -613,8 +613,8 @@ wss.on('connection', handleConnection);
 
 function broadcast(msg) {
   const data = JSON.stringify(msg);
-  wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(data); });
-  virtualClients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(data); });
+  wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) { try { c.send(data); } catch {} } });
+  virtualClients.forEach(c => { if (c.readyState === WebSocket.OPEN) { try { c.send(data); } catch {} } });
 }
 
 // ─── Relay client ─────────────────────────────────────────────────────────────

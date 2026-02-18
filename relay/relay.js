@@ -40,6 +40,8 @@ setInterval(() => {
   ipRates.forEach((v, k) => { if (now > v.resetAt) ipRates.delete(k); });
 }, 300000);
 
+const MAX_MSG_BYTES = 64 * 1024; // 64 KB max message size
+
 // ─── Rooms ────────────────────────────────────────────────────────────────────
 // token → { host: ws|null, clients: Map<clientId, ws> }
 const rooms = new Map();
@@ -140,6 +142,7 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => clearTimeout(regTimer));
 
   ws.on('message', (data) => {
+    if (data.length > MAX_MSG_BYTES) { ws.terminate(); log(`oversized message from ${role || 'unregistered'} — terminated`); return; }
     let msg;
     try { msg = JSON.parse(data.toString()); } catch { return; }
 
