@@ -79,6 +79,19 @@ if (!config.urlToken) {
   saveConfig(config);
 }
 
+// Prune sessions older than 90 days
+const SESSION_TTL = 90 * 24 * 60 * 60 * 1000;
+function pruneSessions() {
+  const cutoff = Date.now() - SESSION_TTL;
+  let pruned = 0;
+  for (const [token, s] of Object.entries(sessions)) {
+    if ((s.lastSeen || 0) < cutoff) { delete sessions[token]; pruned++; }
+  }
+  if (pruned > 0) { saveSessions(sessions); }
+}
+pruneSessions();
+setInterval(pruneSessions, 24 * 60 * 60 * 1000); // daily
+
 // ─── Built-in voice commands ──────────────────────────────────────────────────
 
 const BUILTIN_VOICE_COMMANDS = {
