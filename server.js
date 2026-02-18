@@ -568,7 +568,7 @@ function handleConnection(ws) {
     if (msg.type === 'auth') {
       if (state.authed) return; // ignore re-auth from already-approved socket
       // returning device with saved token
-      if (msg.deviceToken && typeof msg.deviceToken === 'string' && /^[a-f0-9]{32}$/.test(msg.deviceToken) && sessions[msg.deviceToken]) {
+      if (msg.deviceToken && typeof msg.deviceToken === 'string' && /^[a-f0-9]{32}$/.test(msg.deviceToken) && sessions[msg.deviceToken]?.approved === true) {
         sessions[msg.deviceToken].lastSeen = Date.now();
         saveSessions(sessions);
         state.authed = true;
@@ -642,7 +642,7 @@ function handleConnection(ws) {
       ws._phraseOnScreen = '';
       const vcmds = getVoiceCommands();
       const cmd = msg.text.trim().toLowerCase();
-      if (vcmds[cmd]) {
+      if (Object.hasOwn(vcmds, cmd)) {
         const vc = vcmds[cmd];
         const onScreenCap = Math.min(onScreen.length, 500);
         if (onScreenCap > 0) enqueue(`xdotool key --clearmodifiers --repeat ${onScreenCap} BackSpace`, true);
