@@ -365,7 +365,7 @@ function _showPinPopup(pin, ws) {
 
 // ─── Key bindings ─────────────────────────────────────────────────────────────
 
-screen.key(['C-q', 'C-c'], () => process.exit());
+screen.key(['C-q', 'C-c'], () => shutdown());
 
 screen.key('C-p', () => {
   paused = !paused;
