@@ -109,6 +109,11 @@ if (typeof config.relaySecret !== 'string') config.relaySecret = '';
 // Sanitize object fields — discard if not plain objects
 if (typeof config.wordReplacements !== 'object' || Array.isArray(config.wordReplacements) || !config.wordReplacements) config.wordReplacements = {};
 if (typeof config.voiceCommandsExtra !== 'object' || Array.isArray(config.voiceCommandsExtra) || !config.voiceCommandsExtra) config.voiceCommandsExtra = {};
+// Cap entry counts to prevent DoS from huge config files
+const MAX_REPLACEMENTS = 200;
+const MAX_VOICE_CMDS   = 100;
+for (const key of Object.keys(config.wordReplacements).slice(MAX_REPLACEMENTS)) delete config.wordReplacements[key];
+for (const key of Object.keys(config.voiceCommandsExtra).slice(MAX_VOICE_CMDS)) delete config.voiceCommandsExtra[key];
 
 // Prune sessions older than 90 days
 const SESSION_TTL = 90 * 24 * 60 * 60 * 1000;
