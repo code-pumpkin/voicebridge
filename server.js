@@ -17,7 +17,7 @@ function getOpenAI() {
   return _openai;
 }
 function getAnthropic() {
-  if (!_anthropic) { const Anthropic = require('@anthropic-ai/sdk'); _anthropic = new Anthropic({ apiKey: config.aiApiKey }); }
+  if (!_anthropic) { const { Anthropic } = require('@anthropic-ai/sdk'); _anthropic = new Anthropic({ apiKey: config.aiApiKey }); }
   return _anthropic;
 }
 function getGoogle() {
