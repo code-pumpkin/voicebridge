@@ -230,7 +230,8 @@
       };
 
       ws.onmessage = (e) => {
-        const msg = JSON.parse(e.data);
+        let msg;
+        try { msg = JSON.parse(e.data); } catch { return; }
 
         // relay ack — now send auth
         if (msg.type === 'connected') {
@@ -298,7 +299,7 @@
           return;
         }
 
-        if (msg.type === 'paused') { paused = msg.value; syncPauseUI(); }
+        if (msg.type === 'paused') { if (typeof msg.value === 'boolean') { paused = msg.value; syncPauseUI(); } }
       };
     }
     connectWS();
