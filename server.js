@@ -46,8 +46,11 @@ const CONFIG_PATH   = path.join(__dirname, 'config.json');
 const SESSIONS_PATH = path.join(__dirname, 'sessions.json');
 
 function loadConfig() {
-  try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); }
-  catch { return {}; }
+  try {
+    const data = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+    if (data && typeof data === 'object' && !Array.isArray(data)) return data;
+  } catch {}
+  return {};
 }
 function saveConfig(cfg) {
   const tmp = CONFIG_PATH + '.tmp';
