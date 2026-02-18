@@ -249,11 +249,28 @@
         if (msg.type === 'error' && msg.reason === 'room-full') {
           wsStatusEl.textContent = 'room full';
           wsStatusEl.className = 'disconnected';
-          // override reconnect to show permanent error
           ws.onclose = () => {
             wsStatusEl.textContent = 'room full — reload to retry';
             wsStatusEl.className = 'disconnected';
           };
+          return;
+        }
+
+        // relay: rate limited — back off 30s before retrying
+        if (msg.type === 'error' && msg.reason === 'rate-limited') {
+          wsStatusEl.textContent = 'rate limited — wait 30s';
+          wsStatusEl.className = 'disconnected';
+          ws.onclose = () => {
+            wsStatusEl.textContent = 'rate limited — retrying in 30s';
+            setTimeout(connectWS, 30000);
+          };
+          return;
+        }
+
+        // relay: wrong URL token — permanent error
+        if (msg.type === 'error') {
+          wsStatusEl.textContent = `relay error: ${msg.reason}`;
+          wsStatusEl.className = 'disconnected';
           return;
         }
 
