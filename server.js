@@ -563,6 +563,16 @@ function connectRelay() {
     logPhrase(`Relay connected — ${url}`, 'connect');
     updateStatus();
     renderQR();
+
+    // keepalive — ping relay every 25s, terminate if no pong within 10s
+    relayWs.isAlive = true;
+    relayWs.on('pong', () => { relayWs.isAlive = true; clearTimeout(relayWs._pongTimeout); });
+    relayWs._pingTimer = setInterval(() => {
+      if (!relayWs.isAlive) { relayWs.terminate(); return; }
+      relayWs.isAlive = false;
+      relayWs.ping();
+      relayWs._pongTimeout = setTimeout(() => { if (!relayWs.isAlive) relayWs.terminate(); }, 10000);
+    }, 25000);
   });
 
   relayWs.on('message', (data) => {
@@ -601,11 +611,13 @@ function connectRelay() {
   });
 
   relayWs.on('close', () => {
+    clearInterval(relayWs._pingTimer);
+    clearTimeout(relayWs._pongTimeout);
     relayStatus = 'error';
     virtualClients.forEach(vws => { vws.readyState = WebSocket.CLOSED; vws.emit('close'); });
     virtualClients.clear();
     renderQR();
-    if (relayStopped) return; // intentional — don't reconnect
+    if (relayStopped) return;
     logPhrase('Relay disconnected — retrying in 5s', 'warn');
     updateStatus();
     setTimeout(connectRelay, 5000);

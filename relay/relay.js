@@ -9,9 +9,11 @@ const crypto  = require('crypto');
 const WebSocket = require('ws');
 const express = require('express');
 
-const PORT     = process.env.PORT || 4001;
-const CERT_DIR = path.join(__dirname, 'certs');
-const PUBLIC   = path.join(__dirname, 'public');
+const PORT      = process.env.PORT || 4001;
+const CERT_DIR  = path.join(__dirname, 'certs');
+const PUBLIC    = path.join(__dirname, 'public');
+const PING_MS   = 25000; // keepalive interval
+const PING_TTL  = 10000; // max wait for pong before terminating
 
 // ─── Rooms ────────────────────────────────────────────────────────────────────
 // token → { host: ws|null, clients: Map<clientId, ws> }
@@ -20,6 +22,12 @@ const rooms = new Map();
 function getRoom(token) {
   if (!rooms.has(token)) rooms.set(token, { host: null, clients: new Map() });
   return rooms.get(token);
+}
+
+function cleanRoom(token) {
+  const room = rooms.get(token);
+  if (!room) return;
+  if (!room.host && room.clients.size === 0) rooms.delete(token);
 }
 
 // ─── HTTP ─────────────────────────────────────────────────────────────────────
@@ -33,7 +41,6 @@ app.get('/:token', (req, res) => {
     return;
   }
   let content = fs.readFileSync(html, 'utf8');
-  // inject token before </head> so index.html can detect relay mode
   content = content.replace('</head>', `<script>window.RELAY_TOKEN="${req.params.token}";</script>\n</head>`);
   res.setHeader('Content-Type', 'text/html');
   res.send(content);
@@ -57,8 +64,32 @@ try {
 const server = https.createServer(serverOpts, app);
 const wss    = new WebSocket.Server({ server });
 
+// ─── Keepalive ────────────────────────────────────────────────────────────────
+function startKeepalive(ws) {
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+
+  const timer = setInterval(() => {
+    if (!ws.isAlive) {
+      clearInterval(timer);
+      ws.terminate();
+      return;
+    }
+    ws.isAlive = false;
+    ws.ping();
+    // if pong doesn't arrive within TTL, terminate
+    ws._pongTimeout = setTimeout(() => {
+      if (!ws.isAlive) ws.terminate();
+    }, PING_TTL);
+  }, PING_MS);
+
+  ws.on('pong', () => { clearTimeout(ws._pongTimeout); });
+  ws.on('close', () => { clearInterval(timer); clearTimeout(ws._pongTimeout); });
+}
+
 // ─── WebSocket broker ─────────────────────────────────────────────────────────
 wss.on('connection', (ws) => {
+  startKeepalive(ws);
   let role = null, token = null, clientId = null;
 
   ws.on('message', (data) => {
@@ -72,9 +103,9 @@ wss.on('connection', (ws) => {
       const room = getRoom(token);
 
       if (msg.type === 'host-register') {
-        if (room.host && room.host.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'error', reason: 'host-already-connected' }));
-          ws.close(); return;
+        // evict stale host (crashed/reconnecting desktop)
+        if (room.host && room.host !== ws) {
+          try { room.host.terminate(); } catch {}
         }
         role = 'host';
         room.host = ws;
@@ -88,7 +119,6 @@ wss.on('connection', (ws) => {
         clientId = crypto.randomBytes(6).toString('hex');
         room.clients.set(clientId, ws);
         ws.send(JSON.stringify({ type: 'connected', clientId }));
-        // notify host
         if (room.host && room.host.readyState === WebSocket.OPEN)
           room.host.send(JSON.stringify({ type: 'client-connect', clientId }));
         log(`client connected  id=${clientId}  token=${token.slice(0,8)}…`);
@@ -126,11 +156,13 @@ wss.on('connection', (ws) => {
     if (!room) return;
 
     if (role === 'host') {
-      room.host = null;
-      // drop all relay clients when host disappears
-      room.clients.forEach(c => { try { c.close(); } catch {} });
-      room.clients.clear();
+      if (room.host === ws) {
+        room.host = null;
+        room.clients.forEach(c => { try { c.close(); } catch {} });
+        room.clients.clear();
+      }
       log(`host disconnected  token=${token.slice(0,8)}…`);
+      cleanRoom(token);
     }
 
     if (role === 'client' && clientId) {
@@ -138,6 +170,7 @@ wss.on('connection', (ws) => {
       if (room.host && room.host.readyState === WebSocket.OPEN)
         room.host.send(JSON.stringify({ type: 'client-disconnect', clientId }));
       log(`client disconnected  id=${clientId}`);
+      cleanRoom(token);
     }
   });
 });
