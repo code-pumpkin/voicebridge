@@ -552,13 +552,7 @@ screen.key('C-a', () => {
   updateEnabledLabel();
   blessed.text({ parent: form, top: 14, left: 2, content: 'Tab to switch fields, Enter to save, Esc to cancel', style: { fg: '#555' } });
 
-  // provider cycling with arrow keys on the form
-  form.key(['left', 'right'], () => {
-    const idx = providers.indexOf(selProvider);
-    selProvider = providers[(idx + (arguments[0] === 'left' ? -1 + providers.length : 1)) % providers.length];
-    updateProvLabel();
-  });
-  // simpler: just cycle on right arrow always
+  // provider cycling with arrow keys
   form.key('right', () => { const idx = providers.indexOf(selProvider); selProvider = providers[(idx + 1) % providers.length]; updateProvLabel(); });
   form.key('left',  () => { const idx = providers.indexOf(selProvider); selProvider = providers[(idx - 1 + providers.length) % providers.length]; updateProvLabel(); });
 
@@ -567,7 +561,8 @@ screen.key('C-a', () => {
   modelInput.key('tab',  () => promptInput.focus());
   modelInput.key('enter',() => promptInput.focus());
   promptInput.key('tab', () => keyInput.focus());
-  promptInput.key('space', () => { config.aiEnabled = !config.aiEnabled; updateEnabledLabel(); });
+  // space on the form (not inside a textbox) toggles enabled
+  form.key('space', () => { config.aiEnabled = !config.aiEnabled; updateEnabledLabel(); });
 
   function onEscA() { form.destroy(); screen.unkey('escape', onEscA); screen.render(); }
   function save() {
