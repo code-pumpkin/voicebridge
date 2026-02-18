@@ -689,6 +689,7 @@ function connectRelay() {
   ws.on('message', (data) => {
     let msg;
     try { msg = JSON.parse(data.toString()); } catch { return; }
+    if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return;
 
     if (msg.type === 'registered') {
       logPhrase('Relay: host registered, waiting for phones', 'info');
