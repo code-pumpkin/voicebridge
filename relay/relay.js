@@ -86,15 +86,14 @@ let indexHtmlCache = null;
 function getIndexHtml() {
   if (indexHtmlCache !== null) return indexHtmlCache;
   const html = path.join(PUBLIC, 'index.html');
-  if (!fs.existsSync(html)) return null;
-  indexHtmlCache = fs.readFileSync(html, 'utf8');
+  try { indexHtmlCache = fs.readFileSync(html, 'utf8'); } catch { return null; }
   return indexHtmlCache;
 }
 
 app.get('/health', (req, res) => {
   // Require secret if one is configured — Bearer token or ?secret= query param
   if (RELAY_SECRET) {
-    const auth = req.headers.authorization || '';
+    const auth = (typeof req.headers.authorization === 'string' ? req.headers.authorization : '') || '';
     const bearer = auth.startsWith('Bearer ') ? auth.slice(7, 7 + 500) : null;
     const query  = typeof req.query.secret === 'string' ? req.query.secret.slice(0, 500) : null;
     const expected = Buffer.from(RELAY_SECRET);
