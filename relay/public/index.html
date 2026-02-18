@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' wss:; base-uri 'self'">
+  <title>Mic Input</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0f0f0f; color: #fff;
+      height: 100dvh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: space-between;
+      padding: 20px 16px; gap: 12px;
+    }
+
+    /* ── screens ── */
+    .screen { display: none; flex-direction: column; align-items: center; justify-content: center; gap: 20px; width: 100%; flex: 1; }
+    .screen.active { display: flex; }
+
+    /* ── auth screen ── */
+    .pin-card {
+      background: #1a1a1a; border-radius: 20px;
+      padding: 32px 28px; text-align: center;
+      width: 100%; max-width: 340px;
+    }
+    .pin-card h2 { font-size: 18px; color: #fff; margin-bottom: 8px; }
+    .pin-card p  { font-size: 13px; color: #666; margin-bottom: 24px; line-height: 1.5; }
+    .pin-display {
+      font-size: 48px; font-weight: 700; letter-spacing: 10px;
+      color: #a855f7; font-variant-numeric: tabular-nums;
+      margin: 8px 0 24px;
+    }
+    .pin-hint { font-size: 12px; color: #444; }
+
+    /* ── rejected screen ── */
+    .rejected-card {
+      background: #1a0a0a; border-radius: 20px; border: 1px solid #500;
+      padding: 32px 28px; text-align: center;
+      width: 100%; max-width: 340px;
+    }
+    .rejected-card h2 { font-size: 18px; color: #e74c3c; margin-bottom: 8px; }
+    .rejected-card p  { font-size: 13px; color: #666; }
+
+    /* ── top bar ── */
+    .topbar {
+      width: 100%; max-width: 420px;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    #ws-status {
+      font-size: 12px; padding: 4px 10px;
+      border-radius: 20px; background: #1a1a1a;
+    }
+    #ws-status.connected    { color: #2ecc71; }
+    #ws-status.disconnected { color: #e74c3c; }
+    #ws-status.authing      { color: #f39c12; }
+
+    select {
+      background: #1a1a1a; color: #ccc; border: none;
+      border-radius: 8px; padding: 6px 10px; font-size: 13px; flex: 1;
+    }
+
+    /* ── toggles ── */
+    .toggles { width: 100%; max-width: 420px; display: flex; gap: 8px; }
+    .toggle-btn {
+      flex: 1; padding: 8px; border-radius: 10px;
+      border: 1px solid #333; background: #1a1a1a; color: #888;
+      font-size: 12px; cursor: pointer; transition: all 0.15s; text-align: center;
+    }
+    .toggle-btn.active                { background: #2a2a2a; border-color: #555; color: #fff; }
+    .toggle-btn.paused-btn.active     { border-color: #e74c3c; color: #e74c3c; }
+    .toggle-btn.clip-btn.active       { border-color: #3498db; color: #3498db; }
+    .toggle-btn.ai-btn.active        { border-color: #2ecc71; color: #2ecc71; }
+
+    /* ── mic button ── */
+    #btn {
+      width: 130px; height: 130px; border-radius: 50%; border: none;
+      background: #222; color: #fff; font-size: 52px; cursor: pointer;
+      transition: background 0.15s; display: flex; align-items: center;
+      justify-content: center; flex-shrink: 0;
+      user-select: none; -webkit-user-select: none;
+    }
+    #btn.listening  { background: #c0392b; animation: pulse 1.2s infinite; }
+    #btn.paused-state { background: #555; }
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(192,57,43,0.6); }
+      70%  { box-shadow: 0 0 0 22px rgba(192,57,43,0); }
+      100% { box-shadow: 0 0 0 0 rgba(192,57,43,0); }
+    }
+
+    #status { font-size: 13px; color: #666; text-align: center; min-height: 18px; }
+
+    /* ── transcript ── */
+    #transcript {
+      width: 100%; max-width: 420px; min-height: 64px;
+      background: #1a1a1a; border-radius: 12px;
+      padding: 12px 14px; font-size: 15px; color: #ccc;
+      line-height: 1.5; word-break: break-word;
+    }
+    #transcript .interim { color: #555; }
+
+    /* ── history ── */
+    .history-header {
+      width: 100%; max-width: 420px;
+      font-size: 11px; color: #444;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .history-header button { background: none; border: none; color: #444; font-size: 11px; cursor: pointer; }
+    #history { width: 100%; max-width: 420px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; min-height: 0; }
+    .history-item {
+      background: #161616; border-radius: 8px; padding: 8px 12px;
+      font-size: 13px; color: #777;
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;
+    }
+    .history-item span { flex: 1; }
+    .history-item button { background: none; border: none; color: #444; font-size: 16px; cursor: pointer; padding: 0; line-height: 1; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+
+  <!-- Auth screen -->
+  <div class="screen active" id="screen-auth">
+    <div class="pin-card">
+      <h2>🔐 New Device</h2>
+      <p>Enter this PIN on the server TUI to approve this device</p>
+      <div class="pin-display" id="pin-display">------</div>
+      <div class="pin-hint">Waiting for approval...</div>
+    </div>
+  </div>
+
+  <!-- Rejected screen -->
+  <div class="screen" id="screen-rejected">
+    <div class="rejected-card">
+      <h2>Access Denied</h2>
+      <p>This device was rejected. Reload the page to try again.</p>
+    </div>
+  </div>
+
+  <!-- Main app screen -->
+  <div class="screen" id="screen-main">
+    <div class="topbar">
+      <div id="ws-status" class="disconnected">connecting</div>
+      <select id="lang-select">
+        <option value="en-US">English (US)</option>
+        <option value="en-GB">English (UK)</option>
+        <option value="en-AU">English (AU)</option>
+        <option value="ar">Arabic</option>
+        <option value="fr-FR">French</option>
+        <option value="de-DE">German</option>
+        <option value="es-ES">Spanish</option>
+        <option value="it-IT">Italian</option>
+        <option value="pt-BR">Portuguese (BR)</option>
+        <option value="zh-CN">Chinese (Simplified)</option>
+        <option value="ja-JP">Japanese</option>
+        <option value="ko-KR">Korean</option>
+        <option value="hi-IN">Hindi</option>
+      </select>
+    </div>
+
+    <div class="toggles">
+      <div class="toggle-btn paused-btn" id="pause-btn">⏸ Pause</div>
+      <div class="toggle-btn clip-btn"   id="clip-btn">📋 Clipboard</div>
+      <div class="toggle-btn ptt-btn"    id="ptt-btn">👆 Hold</div>
+      <div class="toggle-btn ai-btn"     id="ai-btn">🤖 AI</div>
+      <div class="toggle-btn" id="refresh-btn" onclick="location.reload()">↺ Refresh</div>
+    </div>
+
+    <button id="btn">🎤</button>
+    <div id="status">Tap to start</div>
+
+    <div id="transcript"><span class="interim">Transcript appears here...</span></div>
+
+    <div class="history-header">
+      <span>History</span>
+      <button id="clear-history">clear</button>
+    </div>
+    <div id="history"></div>
+  </div>
+
+  <script>
+    // ── Screens ──────────────────────────────────────────────────────────────
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    // ── Elements ─────────────────────────────────────────────────────────────
+    const btn          = document.getElementById('btn');
+    const statusEl     = document.getElementById('status');
+    const transcriptEl = document.getElementById('transcript');
+    const wsStatusEl   = document.getElementById('ws-status');
+    const langSelect   = document.getElementById('lang-select');
+    const pauseBtn     = document.getElementById('pause-btn');
+    const clipBtn      = document.getElementById('clip-btn');
+    const pttBtn       = document.getElementById('ptt-btn');
+    const historyEl    = document.getElementById('history');
+    const pinDisplay   = document.getElementById('pin-display');
+
+    let paused = false, clipboardMode = false, pttMode = false, aiMode = false, listening = false, recognition;
+
+    // ── Session (localStorage) ────────────────────────────────────────────────
+    const STORAGE_KEY = 'mic_device_token';
+    const _stored = localStorage.getItem(STORAGE_KEY);
+    let deviceToken = (_stored && /^[a-f0-9]{32}$/.test(_stored)) ? _stored : null;
+
+    // ── AI button ─────────────────────────────────────────────────────────────
+    const aiBtn = document.getElementById('ai-btn');
+
+    // ── WebSocket ─────────────────────────────────────────────────────────────
+    // If served from relay, window.RELAY_TOKEN is injected by relay.js
+    const RELAY_MODE  = typeof window.RELAY_TOKEN !== 'undefined';
+    let ws, authed = false;
+
+    function connectWS() {
+      ws = new WebSocket(`wss://${location.host}`);
+      wsStatusEl.textContent = 'connecting';
+      wsStatusEl.className = 'authing';
+
+      ws.onopen = () => {
+        try {
+          if (RELAY_MODE) {
+            ws.send(JSON.stringify({ type: 'client-connect', token: window.RELAY_TOKEN }));
+          } else {
+            ws.send(JSON.stringify({ type: 'auth', deviceToken: deviceToken || null }));
+          }
+        } catch {}
+      };
+
+      ws.onclose = () => {
+        wsStatusEl.textContent = 'disconnected';
+        wsStatusEl.className = 'disconnected';
+        authed = false;
+        setTimeout(connectWS, 2000);
+      };
+
+      ws.onerror = () => {
+        wsStatusEl.textContent = 'connection error';
+        wsStatusEl.className = 'disconnected';
+      };
+
+      ws.onmessage = (e) => {
+        let msg;
+        try { msg = JSON.parse(e.data); } catch { return; }
+        if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return;
+
+        // relay ack — now send auth
+        if (msg.type === 'connected') {
+          try { ws.send(JSON.stringify({ type: 'auth', deviceToken: deviceToken || null })); } catch {}
+          return;
+        }
+
+        // relay: host not up yet — ws.onclose will fire and trigger reconnect
+        if (msg.type === 'error' && msg.reason === 'host-unavailable') {
+          wsStatusEl.textContent = 'host offline — retrying';
+          wsStatusEl.className = 'disconnected';
+          return;
+        }
+
+        // relay: too many clients in room — stop retrying
+        if (msg.type === 'error' && msg.reason === 'room-full') {
+          wsStatusEl.textContent = 'room full';
+          wsStatusEl.className = 'disconnected';
+          ws.onclose = () => {
+            authed = false;
+            wsStatusEl.textContent = 'room full — reload to retry';
+            wsStatusEl.className = 'disconnected';
+          };
+          return;
+        }
+
+        // relay: rate limited — back off 30s before retrying
+        if (msg.type === 'error' && msg.reason === 'rate-limited') {
+          wsStatusEl.textContent = 'rate limited — wait 30s';
+          wsStatusEl.className = 'disconnected';
+          ws.onclose = () => {
+            authed = false;
+            wsStatusEl.textContent = 'rate limited — retrying in 30s';
+            setTimeout(connectWS, 30000);
+          };
+          return;
+        }
+
+        // relay: wrong URL token — permanent error
+        if (msg.type === 'error') {
+          wsStatusEl.textContent = `relay error: ${typeof msg.reason === 'string' ? msg.reason.slice(0, 100) : 'unknown'}`;
+          wsStatusEl.className = 'disconnected';
+          return;
+        }
+
+        if (msg.type === 'auth') {
+          if (msg.status === 'approved') {
+            authed = true;
+            if (msg.deviceToken && typeof msg.deviceToken === 'string' && /^[a-f0-9]{32}$/.test(msg.deviceToken)) {
+              deviceToken = msg.deviceToken;
+              localStorage.setItem(STORAGE_KEY, deviceToken);
+            }
+            wsStatusEl.textContent = 'connected';
+            wsStatusEl.className = 'connected';
+            showScreen('screen-main');
+            send({ type: 'config', language: langSelect.value, pttMode, clipboardMode });
+          } else if (msg.status === 'pin') {
+            if (typeof msg.pin === 'string' && /^\d{6}$/.test(msg.pin)) pinDisplay.textContent = msg.pin;
+            showScreen('screen-auth');
+          } else if (msg.status === 'rejected') {
+            showScreen('screen-rejected');
+          } else if (msg.status === 'required') {
+            deviceToken = null;
+            localStorage.removeItem(STORAGE_KEY);
+            try { ws.send(JSON.stringify({ type: 'auth', deviceToken: null })); } catch {}
+          }
+          return;
+        }
+
+        if (msg.type === 'paused') { if (typeof msg.value === 'boolean') { paused = msg.value; syncPauseUI(); } }
+      };
+    }
+    connectWS();
+
+    function send(obj) {
+      if (ws && ws.readyState === WebSocket.OPEN && authed) try { ws.send(JSON.stringify(obj)); } catch {}
+    }
+
+    // ── History ───────────────────────────────────────────────────────────────
+    function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function addHistory(text) {
+      const item = document.createElement('div');
+      item.className = 'history-item';
+      item.innerHTML = `<span>${escapeHtml(text)}</span><button title="Resend">↩</button>`;
+      item.querySelector('button').addEventListener('click', () => send({ type: 'final', text }));
+      historyEl.prepend(item);
+    }
+    document.getElementById('clear-history').addEventListener('click', () => historyEl.innerHTML = '');
+
+    // ── Pause ─────────────────────────────────────────────────────────────────
+    function syncPauseUI() {
+      pauseBtn.classList.toggle('active', paused);
+      pauseBtn.textContent = paused ? '▶ Resume' : '⏸ Pause';
+      btn.classList.toggle('paused-state', paused);
+      if (paused && listening) stopListening();
+    }
+    pauseBtn.addEventListener('click', () => { paused = !paused; send({ type: 'config', paused }); syncPauseUI(); });
+
+    // ── Clipboard ─────────────────────────────────────────────────────────────
+    clipBtn.addEventListener('click', () => {
+      clipboardMode = !clipboardMode;
+      clipBtn.classList.toggle('active', clipboardMode);
+      send({ type: 'config', clipboardMode });
+    });
+
+    // ── AI ────────────────────────────────────────────────────────────────────
+    aiBtn.addEventListener('click', () => {
+      aiMode = !aiMode;
+      aiBtn.classList.toggle('active', aiMode);
+      aiBtn.textContent = aiMode ? '🤖 AI (on)' : '🤖 AI';
+      send({ type: 'config', aiEnabled: aiMode });
+    });
+
+    // ── PTT ───────────────────────────────────────────────────────────────────
+    pttBtn.addEventListener('click', () => {      pttMode = !pttMode;
+      pttBtn.classList.toggle('active', pttMode);
+      pttBtn.textContent = pttMode ? '👆 Hold (on)' : '👆 Hold';
+      send({ type: 'config', pttMode });
+      if (listening) stopListening();
+    });
+
+    btn.addEventListener('pointerdown', (e) => { if (!pttMode) return; e.preventDefault(); if (!listening) startListening(); });
+    btn.addEventListener('pointerup',    () => { if (pttMode && listening) stopListening(); });
+    btn.addEventListener('pointerleave', () => { if (pttMode && listening) stopListening(); });
+    btn.addEventListener('click', () => { if (pttMode || paused) return; if (listening) stopListening(); else startListening(); });
+
+    // ── Speech Recognition ────────────────────────────────────────────────────
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { statusEl.textContent = 'Speech recognition not supported'; btn.disabled = true; }
+
+    function startListening() {
+      if (paused || !authed) return;
+      recognition = new SR();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = langSelect.value;
+
+      recognition.onstart = () => { listening = true; btn.classList.add('listening'); statusEl.textContent = 'Listening...'; };
+
+      recognition.onresult = (e) => {
+        let interim = '', final = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) final += t; else interim += t;
+        }
+        transcriptEl.innerHTML = final
+          ? `${escapeHtml(final)}<span class="interim"> ${escapeHtml(interim)}</span>`
+          : `<span class="interim">${escapeHtml(interim) || '...'}</span>`;
+
+        if (final) { send({ type: 'final', text: final.slice(0, 2000) }); addHistory(final.trim().slice(0, 2000)); }
+        else if (interim) { send({ type: 'interim', text: interim.slice(0, 2000) }); }
+      };
+
+      recognition.onerror = (e) => { if (e.error === 'no-speech') return; statusEl.textContent = `Error: ${e.error}`; stopListening(); };
+      recognition.onend   = () => { if (listening && !pttMode) setTimeout(() => { if (listening && !pttMode) try { recognition.start(); } catch {} }, 300); };
+      try { recognition.start(); } catch {}
+    }
+
+    function stopListening() {
+      listening = false;
+      btn.classList.remove('listening');
+      statusEl.textContent = pttMode ? 'Hold to talk' : 'Tap to start';
+      transcriptEl.innerHTML = '<span class="interim">Transcript appears here...</span>';
+      if (recognition) try { recognition.stop(); } catch {}
+    }
+
+    langSelect.addEventListener('change', () => {
+      send({ type: 'config', language: langSelect.value });
+      if (listening) { stopListening(); startListening(); }
+    });
+  </script>
+</body>
+</html>
