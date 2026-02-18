@@ -147,7 +147,6 @@ let startTime      = Date.now();
 let renderQR       = () => {}; // assigned after server starts
 
 const phoneStates  = new Map(); // ws -> { language, pttMode, clipboardMode, authed, deviceToken, pin }
-const pendingPins  = new Map(); // pin -> ws  (waiting for TUI approval)
 
 // ─── TUI ──────────────────────────────────────────────────────────────────────
 
@@ -300,6 +299,11 @@ function processPinQueue() {
 }
 
 function showPinPrompt(pin, ws) {
+  // remove from queue if phone disconnects while waiting
+  ws.once('close', () => {
+    const idx = pinQueue.findIndex(e => e.ws === ws);
+    if (idx !== -1) pinQueue.splice(idx, 1);
+  });
   pinQueue.push({ pin, ws });
   processPinQueue();
 }
@@ -324,10 +328,9 @@ function _showPinPopup(pin, ws) {
     screen.unkey('y', onY);
     screen.unkey('n', onN);
     popup.destroy();
-    pendingPins.delete(pin);
     pinPromptActive = false;
     screen.render();
-    processPinQueue(); // show next queued prompt if any
+    processPinQueue();
   }
 
   function onY() {
@@ -498,7 +501,6 @@ function handleConnection(ws) {
       }
       // new device — generate PIN, show popup
       const pin = String(Math.floor(100000 + Math.random() * 900000));
-      pendingPins.set(pin, ws);
       ws.send(JSON.stringify({ type: 'auth', status: 'pin', pin }));
       logPhrase(`New device — PIN: ${pin}`, 'auth');
       showPinPrompt(pin, ws);
