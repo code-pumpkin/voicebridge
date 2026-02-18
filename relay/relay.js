@@ -153,7 +153,7 @@ const wss    = new WebSocket.Server({ server, maxPayload: 64 * 1024 }); // 64KB 
 // ─── Keepalive ────────────────────────────────────────────────────────────────
 function startKeepalive(ws) {
   ws.isAlive = true;
-  ws.on('pong', () => { ws.isAlive = true; });
+  ws.on('pong', () => { ws.isAlive = true; clearTimeout(ws._pongTimeout); });
 
   const timer = setInterval(() => {
     if (!ws.isAlive) {
@@ -169,7 +169,6 @@ function startKeepalive(ws) {
     }, PING_TTL);
   }, PING_MS);
 
-  ws.on('pong', () => { clearTimeout(ws._pongTimeout); });
   ws.on('close', () => { clearInterval(timer); clearTimeout(ws._pongTimeout); });
 }
 
