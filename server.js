@@ -457,7 +457,10 @@ screen.key('C-r', () => {
     screen.unkey('escape', onEscR);
     const from = fromInput.getValue().trim().toLowerCase().slice(0, 200);
     const to   = toInput.getValue().trim().slice(0, 500);
-    if (from && to) { config.wordReplacements[from] = to; saveConfig(config); logPhrase(`Replacement: "${from}" → "${to}"`, 'command'); }
+    const FORBIDDEN = ['__proto__', 'constructor', 'prototype'];
+    if (from && to && !FORBIDDEN.includes(from)) {
+      config.wordReplacements[from] = to; saveConfig(config); logPhrase(`Replacement: "${from}" → "${to}"`, 'command');
+    }
     form.destroy(); updateStatus();
   });
   screen.key('escape', onEscR);
