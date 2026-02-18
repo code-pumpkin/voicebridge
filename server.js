@@ -54,13 +54,11 @@ function loadConfig() {
 }
 function saveConfig(cfg) {
   const tmp = CONFIG_PATH + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(cfg, null, 2));
-  fs.renameSync(tmp, CONFIG_PATH);
+  try { fs.writeFileSync(tmp, JSON.stringify(cfg, null, 2)); fs.renameSync(tmp, CONFIG_PATH); } catch (e) { console.error('[config] save failed:', e.message); }
 }
 function saveSessions(s) {
   const tmp = SESSIONS_PATH + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(s, null, 2));
-  fs.renameSync(tmp, SESSIONS_PATH);
+  try { fs.writeFileSync(tmp, JSON.stringify(s, null, 2)); fs.renameSync(tmp, SESSIONS_PATH); } catch (e) { console.error('[sessions] save failed:', e.message); }
 }
 function loadSessions() {
   try {
