@@ -835,6 +835,8 @@ function handleConnection(ws) {
         updateStatus();
         aiSummarize(finalText).then(improved => {
           if (improved === finalText) return;
+          // phone may have disconnected while AI was in-flight — bail out
+          if (ws.readyState !== WebSocket.OPEN) return;
           const delCount = Math.min(toType.length, 500);
           enqueue(`xdotool key --clearmodifiers --repeat ${delCount} BackSpace`, true);
           typeOrClip(improved.trimStart() + ' ');
