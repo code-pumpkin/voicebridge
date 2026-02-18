@@ -93,8 +93,8 @@ app.get('/health', (req, res) => {
   // Require secret if one is configured — Bearer token or ?secret= query param
   if (RELAY_SECRET) {
     const auth = req.headers.authorization || '';
-    const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : null;
-    const query  = typeof req.query.secret === 'string' ? req.query.secret : null;
+    const bearer = auth.startsWith('Bearer ') ? auth.slice(7, 7 + 500) : null;
+    const query  = typeof req.query.secret === 'string' ? req.query.secret.slice(0, 500) : null;
     const expected = Buffer.from(RELAY_SECRET);
     const bearerBuf = bearer !== null ? Buffer.from(bearer) : null;
     const queryBuf  = query  !== null ? Buffer.from(query)  : null;
