@@ -107,6 +107,7 @@ wss.on('connection', (ws) => {
   const regTimer = setTimeout(() => {
     if (!role) { ws.terminate(); log('dropped unregistered socket (timeout)'); }
   }, REG_TIMEOUT);
+  ws.on('close', () => clearTimeout(regTimer));
 
   ws.on('message', (data) => {
     let msg;
