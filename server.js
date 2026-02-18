@@ -1018,7 +1018,8 @@ server.listen(config.port, '0.0.0.0', () => {
   logPhrase(`Server started — ${localUrl}`, 'connect');
   logPhrase('Scan QR or open URL on your phone', 'info');
   if (config.relayUrl) logPhrase(`Relay URL set — connecting to ${config.relayUrl}`, 'info');
-  else logPhrase('No relay configured — local only (set relayUrl in config.json)', 'info');
+  else logPhrase('Tip: press Ctrl+E to set a relay URL for remote access', 'info');
+  if (!config.aiApiKey) logPhrase('Tip: press Ctrl+A to configure AI summarize (OpenAI / Anthropic / Google)', 'info');
   screen.render();
 
   // Start relay connection after local server is up
