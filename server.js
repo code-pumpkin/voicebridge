@@ -503,17 +503,17 @@ screen.key('C-e', () => {
   blessed.text({ parent: form, top: 4, left: 2, content: 'Relay secret (leave blank if none):', style: { fg: '#888' } });
   const secretInput = blessed.textbox({ parent: form, top: 5, left: 2, width: 54, height: 1, style: { fg: 'white', bg: '#222' }, inputOnFocus: true, value: config.relaySecret || '' });
   const tlsLabel = blessed.text({ parent: form, top: 7, left: 2, tags: true, style: { fg: '#888', bg: '#111' } });
-  function updateTlsLabel() { tlsLabel.setContent(`{#888888-fg}TLS verify:{/#888888-fg} {${rejectUnauth ? 'green' : 'yellow'}-fg}${rejectUnauth ? 'on (prod/LE)' : 'off (self-signed)'}{/${rejectUnauth ? 'green' : 'yellow'}-fg}  {#555-fg}[Ctrl+Space to toggle]{/#555-fg}`); screen.render(); }
+  function updateTlsLabel() { tlsLabel.setContent(`{#888888-fg}TLS verify:{/#888888-fg} {${rejectUnauth ? 'green' : 'yellow'}-fg}${rejectUnauth ? 'on (prod/LE)' : 'off (self-signed)'}{/${rejectUnauth ? 'green' : 'yellow'}-fg}  {#555-fg}[Ctrl+T to toggle]{/#555-fg}`); screen.render(); }
   updateTlsLabel();
   blessed.text({ parent: form, top: 9,  left: 2, content: 'e.g. wss://yourserver.com:4001', style: { fg: '#555' } });
-  blessed.text({ parent: form, top: 10, left: 2, content: 'Tab to switch fields, Ctrl+Space to toggle TLS, Enter to save, Esc to cancel', style: { fg: '#555' } });
+  blessed.text({ parent: form, top: 10, left: 2, content: 'Tab to switch fields, Ctrl+T to toggle TLS, Enter to save, Esc to cancel', style: { fg: '#555' } });
   urlInput.key('tab',   () => secretInput.focus());
   urlInput.key('enter', () => secretInput.focus());
   secretInput.key('tab', () => urlInput.focus());
   const toggleTls = () => { rejectUnauth = !rejectUnauth; updateTlsLabel(); };
-  form.key('C-space',        toggleTls);
-  urlInput.key('C-space',    toggleTls);
-  secretInput.key('C-space', toggleTls);
+  form.key('C-t',        toggleTls);
+  urlInput.key('C-t',    toggleTls);
+  secretInput.key('C-t', toggleTls);
   function onEscE() { form.destroy(); screen.unkey('escape', onEscE); screen.render(); }
   function save() {
     screen.unkey('escape', onEscE);
@@ -552,10 +552,10 @@ screen.key('C-a', () => {
   blessed.text({ parent: form, top: 9, left: 2, content: 'Prompt:', style: { fg: '#888' } });
   const promptInput = blessed.textbox({ parent: form, top: 10, left: 2, width: 56, height: 1, style: { fg: 'white', bg: '#222' }, inputOnFocus: true, value: config.aiPrompt || DEFAULT_CONFIG.aiPrompt });
   const enabledLabel = blessed.text({ parent: form, top: 12, left: 2, tags: true, style: { bg: '#111' } });
-  function updateEnabledLabel() { enabledLabel.setContent(`{#888888-fg}AI:{/#888888-fg} {${pendingEnabled ? 'green' : 'red'}-fg}${pendingEnabled ? 'enabled' : 'disabled'}{/${pendingEnabled ? 'green' : 'red'}-fg}  {#555-fg}[Ctrl+Space to toggle]{/#555-fg}`); screen.render(); }
+  function updateEnabledLabel() { enabledLabel.setContent(`{#888888-fg}AI:{/#888888-fg} {${pendingEnabled ? 'green' : 'red'}-fg}${pendingEnabled ? 'enabled' : 'disabled'}{/${pendingEnabled ? 'green' : 'red'}-fg}  {#555-fg}[Ctrl+T to toggle]{/#555-fg}`); screen.render(); }
   updateEnabledLabel();
   blessed.text({ parent: form, top: 14, left: 2, content: 'Tab to switch fields, Ctrl+N to cycle provider, Enter to save, Esc to cancel', style: { fg: '#555' } });
-  blessed.text({ parent: form, top: 15, left: 2, content: 'Ctrl+Space to toggle AI on/off', style: { fg: '#555' } });
+  blessed.text({ parent: form, top: 15, left: 2, content: 'Ctrl+T to toggle AI on/off', style: { fg: '#555' } });
 
   // provider cycling — arrow keys work when form is focused, Ctrl+N works from any field
   form.key('right', () => { const idx = providers.indexOf(selProvider); selProvider = providers[(idx + 1) % providers.length]; updateProvLabel(); });
@@ -565,10 +565,10 @@ screen.key('C-a', () => {
   modelInput.key('C-n',  cycleProvider);
   promptInput.key('C-n', cycleProvider);
   const toggleEnabled = () => { pendingEnabled = !pendingEnabled; updateEnabledLabel(); };
-  form.key('C-space',       toggleEnabled);
-  keyInput.key('C-space',   toggleEnabled);
-  modelInput.key('C-space', toggleEnabled);
-  promptInput.key('C-space',toggleEnabled);
+  form.key('C-t',       toggleEnabled);
+  keyInput.key('C-t',   toggleEnabled);
+  modelInput.key('C-t', toggleEnabled);
+  promptInput.key('C-t',toggleEnabled);
 
   keyInput.key('tab',    () => modelInput.focus());
   keyInput.key('enter',  () => modelInput.focus());
