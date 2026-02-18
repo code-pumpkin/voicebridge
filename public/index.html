@@ -278,7 +278,7 @@
         if (msg.type === 'auth') {
           if (msg.status === 'approved') {
             authed = true;
-            if (msg.deviceToken) {
+            if (msg.deviceToken && typeof msg.deviceToken === 'string' && /^[a-f0-9]{32}$/.test(msg.deviceToken)) {
               deviceToken = msg.deviceToken;
               localStorage.setItem(STORAGE_KEY, deviceToken);
             }
@@ -287,7 +287,7 @@
             showScreen('screen-main');
             send({ type: 'config', language: langSelect.value, pttMode, clipboardMode });
           } else if (msg.status === 'pin') {
-            pinDisplay.textContent = msg.pin;
+            if (typeof msg.pin === 'string') pinDisplay.textContent = msg.pin;
             showScreen('screen-auth');
           } else if (msg.status === 'rejected') {
             showScreen('screen-rejected');
