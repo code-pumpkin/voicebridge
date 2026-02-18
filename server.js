@@ -493,7 +493,7 @@ function handleConnection(ws) {
     // ── Auth handshake ──
     if (msg.type === 'auth') {
       // returning device with saved token
-      if (msg.deviceToken && sessions[msg.deviceToken]) {
+      if (msg.deviceToken && typeof msg.deviceToken === 'string' && /^[a-f0-9]{32}$/.test(msg.deviceToken) && sessions[msg.deviceToken]) {
         sessions[msg.deviceToken].lastSeen = Date.now();
         saveSessions(sessions);
         state.authed = true;
@@ -567,15 +567,16 @@ function handleConnection(ws) {
       const cmd = msg.text.trim().toLowerCase();
       if (vcmds[cmd]) {
         const vc = vcmds[cmd];
-        if (onScreen.length > 0) enqueue(`xdotool key --clearmodifiers --repeat ${onScreen.length} BackSpace`, true);
-        if (vc.action === 'scratch') { if (ws._lastPhraseLen > 0) { enqueue(`xdotool key --clearmodifiers --repeat ${ws._lastPhraseLen} BackSpace`, true); logPhrase(`Scratched: "${ws._lastPhrase}"`, 'command'); ws._lastPhrase = ''; ws._lastPhraseLen = 0; } }
+        const onScreenCap = Math.min(onScreen.length, 500);
+        if (onScreenCap > 0) enqueue(`xdotool key --clearmodifiers --repeat ${onScreenCap} BackSpace`, true);
+        if (vc.action === 'scratch') { if (ws._lastPhraseLen > 0) { const cap = Math.min(ws._lastPhraseLen, 500); enqueue(`xdotool key --clearmodifiers --repeat ${cap} BackSpace`, true); logPhrase(`Scratched: "${ws._lastPhrase}"`, 'command'); ws._lastPhrase = ''; ws._lastPhraseLen = 0; } }
         else if (vc.action === 'key')  { enqueue(`xdotool key --clearmodifiers ${safeKey(vc.key)}`, true); logPhrase(`⌘ ${cmd}`, 'command'); }
         else if (vc.action === 'type') { typeOrClip(vc.text); logPhrase(`⌘ ${cmd} → "${vc.text}"`, 'command'); }
         return;
       }
       const finalText = applyReplacements(msg.text);
       const { deleteCount, typeStr } = wordDiff(onScreen, finalText);
-      if (deleteCount > 0) enqueue(`xdotool key --clearmodifiers --repeat ${deleteCount} BackSpace`, true);
+      if (deleteCount > 0) enqueue(`xdotool key --clearmodifiers --repeat ${Math.min(deleteCount, 500)} BackSpace`, true);
       const toType = typeStr.trimStart() + ' ';
       typeOrClip(toType);
       ws._lastPhrase = toType; ws._lastPhraseLen = toType.length;
