@@ -201,7 +201,9 @@
 
     // ── Session (localStorage) ────────────────────────────────────────────────
     const STORAGE_KEY = 'mic_device_token';
-    let deviceToken = localStorage.getItem(STORAGE_KEY);
+    const _stored = localStorage.getItem(STORAGE_KEY);
+    // validate format on read — discard if tampered
+    let deviceToken = (_stored && /^[a-f0-9]{32}$/.test(_stored)) ? _stored : null;
 
     // ── WebSocket ─────────────────────────────────────────────────────────────
     // If served from relay, window.RELAY_TOKEN is injected by relay.js
@@ -270,7 +272,7 @@
 
         // relay: wrong URL token — permanent error
         if (msg.type === 'error') {
-          wsStatusEl.textContent = `relay error: ${msg.reason}`;
+          wsStatusEl.textContent = `relay error: ${typeof msg.reason === 'string' ? msg.reason : 'unknown'}`;
           wsStatusEl.className = 'disconnected';
           return;
         }
