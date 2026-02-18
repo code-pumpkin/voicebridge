@@ -72,7 +72,7 @@
     .toggle-btn.active                { background: #2a2a2a; border-color: #555; color: #fff; }
     .toggle-btn.paused-btn.active     { border-color: #e74c3c; color: #e74c3c; }
     .toggle-btn.clip-btn.active       { border-color: #3498db; color: #3498db; }
-    .toggle-btn.ptt-btn.active        { border-color: #f39c12; color: #f39c12; }
+    .toggle-btn.ai-btn.active        { border-color: #2ecc71; color: #2ecc71; }
 
     /* ── mic button ── */
     #btn {
@@ -164,6 +164,7 @@
       <div class="toggle-btn paused-btn" id="pause-btn">⏸ Pause</div>
       <div class="toggle-btn clip-btn"   id="clip-btn">📋 Clipboard</div>
       <div class="toggle-btn ptt-btn"    id="ptt-btn">👆 Hold</div>
+      <div class="toggle-btn ai-btn"     id="ai-btn">🤖 AI</div>
       <div class="toggle-btn" id="refresh-btn" onclick="location.reload()">↺ Refresh</div>
     </div>
 
@@ -198,13 +199,15 @@
     const historyEl    = document.getElementById('history');
     const pinDisplay   = document.getElementById('pin-display');
 
-    let paused = false, clipboardMode = false, pttMode = false, listening = false, recognition;
+    let paused = false, clipboardMode = false, pttMode = false, aiMode = false, listening = false, recognition;
 
     // ── Session (localStorage) ────────────────────────────────────────────────
     const STORAGE_KEY = 'mic_device_token';
     const _stored = localStorage.getItem(STORAGE_KEY);
-    // validate format on read — discard if tampered
     let deviceToken = (_stored && /^[a-f0-9]{32}$/.test(_stored)) ? _stored : null;
+
+    // ── AI button ─────────────────────────────────────────────────────────────
+    const aiBtn = document.getElementById('ai-btn');
 
     // ── WebSocket ─────────────────────────────────────────────────────────────
     // If served from relay, window.RELAY_TOKEN is injected by relay.js
@@ -347,9 +350,16 @@
       send({ type: 'config', clipboardMode });
     });
 
+    // ── AI ────────────────────────────────────────────────────────────────────
+    aiBtn.addEventListener('click', () => {
+      aiMode = !aiMode;
+      aiBtn.classList.toggle('active', aiMode);
+      aiBtn.textContent = aiMode ? '🤖 AI (on)' : '🤖 AI';
+      send({ type: 'config', aiEnabled: aiMode });
+    });
+
     // ── PTT ───────────────────────────────────────────────────────────────────
-    pttBtn.addEventListener('click', () => {
-      pttMode = !pttMode;
+    pttBtn.addEventListener('click', () => {      pttMode = !pttMode;
       pttBtn.classList.toggle('active', pttMode);
       pttBtn.textContent = pttMode ? '👆 Hold (on)' : '👆 Hold';
       send({ type: 'config', pttMode });

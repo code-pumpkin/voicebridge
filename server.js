@@ -10,6 +10,21 @@ const express  = require('express');
 const blessed  = require('blessed');
 const QRCode   = require('qrcode');
 
+// ─── AI SDKs (loaded lazily on first use) ────────────────────────────────────
+let _openai = null, _anthropic = null, _google = null;
+function getOpenAI() {
+  if (!_openai) { const { OpenAI } = require('openai'); _openai = new OpenAI({ apiKey: config.aiApiKey }); }
+  return _openai;
+}
+function getAnthropic() {
+  if (!_anthropic) { const Anthropic = require('@anthropic-ai/sdk'); _anthropic = new Anthropic({ apiKey: config.aiApiKey }); }
+  return _anthropic;
+}
+function getGoogle() {
+  if (!_google) { const { GoogleGenerativeAI } = require('@google/generative-ai'); _google = new GoogleGenerativeAI(config.aiApiKey); }
+  return _google;
+}
+
 // ─── VirtualWS ────────────────────────────────────────────────────────────────
 // Wraps a relay-proxied client so it looks identical to a real ws to handleConnection()
 class VirtualWS extends EventEmitter {
@@ -74,9 +89,14 @@ const DEFAULT_CONFIG = {
   clipboardMode: false,
   wordReplacements: {},
   voiceCommandsExtra: {},
-  relayUrl: '',                  // e.g. "wss://yourrelay.example.com:4001"
-  relaySecret: '',               // must match RELAY_SECRET env var on the relay server
-  relayRejectUnauthorized: true, // false for self-signed certs (dev only)
+  relayUrl: '',
+  relaySecret: '',
+  relayRejectUnauthorized: true,
+  aiEnabled:   false,
+  aiProvider:  'openai',   // 'openai' | 'anthropic' | 'google'
+  aiModel:     '',         // blank = use provider default
+  aiApiKey:    '',
+  aiPrompt:    'You are a transcription assistant. Clean up and summarize the following spoken text into clear, concise written prose. Preserve the meaning exactly. Output only the improved text, nothing else.',
 };
 
 let config   = { ...DEFAULT_CONFIG, ...loadConfig() };
@@ -121,6 +141,15 @@ if (typeof config.relaySecret !== 'string') config.relaySecret = '';
 // Cap string lengths to prevent oversized values from config.json
 config.relayUrl    = config.relayUrl.slice(0, 500);
 config.relaySecret = config.relaySecret.slice(0, 200);
+// Sanitize AI fields
+if (typeof config.aiEnabled  !== 'boolean') config.aiEnabled = false;
+if (!['openai','anthropic','google'].includes(config.aiProvider)) config.aiProvider = 'openai';
+if (typeof config.aiModel    !== 'string')  config.aiModel   = '';
+if (typeof config.aiApiKey   !== 'string')  config.aiApiKey  = '';
+if (typeof config.aiPrompt   !== 'string')  config.aiPrompt  = DEFAULT_CONFIG.aiPrompt;
+config.aiModel  = config.aiModel.slice(0, 100);
+config.aiApiKey = config.aiApiKey.slice(0, 200);
+config.aiPrompt = config.aiPrompt.slice(0, 1000);
 // Sanitize object fields — discard if not plain objects
 if (typeof config.wordReplacements !== 'object' || Array.isArray(config.wordReplacements) || !config.wordReplacements) config.wordReplacements = {};
 if (typeof config.voiceCommandsExtra !== 'object' || Array.isArray(config.voiceCommandsExtra) || !config.voiceCommandsExtra) config.voiceCommandsExtra = {};
@@ -277,7 +306,7 @@ const liveBox = blessed.box({
 
 const bottomBar = blessed.box({
   bottom: 0, left: 0, width: '100%', height: 1, tags: true,
-  content: ' {black-fg}{cyan-bg}[^P]{/cyan-bg}{/black-fg} Pause  {black-fg}{cyan-bg}[^R]{/cyan-bg}{/black-fg} Add Replace  {black-fg}{cyan-bg}[^D]{/cyan-bg}{/black-fg} Del Replace  {black-fg}{cyan-bg}[^E]{/cyan-bg}{/black-fg} Relay URL  {black-fg}{cyan-bg}[^L]{/cyan-bg}{/black-fg} Clear Log  {black-fg}{cyan-bg}[^Q]{/cyan-bg}{/black-fg} Quit',
+  content: ' {black-fg}{cyan-bg}[^P]{/cyan-bg}{/black-fg} Pause  {black-fg}{cyan-bg}[^R]{/cyan-bg}{/black-fg} Add Replace  {black-fg}{cyan-bg}[^D]{/cyan-bg}{/black-fg} Del Replace  {black-fg}{cyan-bg}[^E]{/cyan-bg}{/black-fg} Relay URL  {black-fg}{cyan-bg}[^A]{/cyan-bg}{/black-fg} AI  {black-fg}{cyan-bg}[^L]{/cyan-bg}{/black-fg} Clear Log  {black-fg}{cyan-bg}[^Q]{/cyan-bg}{/black-fg} Quit',
   style: { fg: '#aaaaaa', bg: '#111' },
 });
 
@@ -305,7 +334,8 @@ function updateStatus() {
     `${badge('Status  ', paused ? '⏸  PAUSED' : '▶  ACTIVE', paused ? 'red' : 'green')}\n` +
     `${badge('Uptime  ', fmtUptime(), '#888888')}\n` +
     `${badge('Clients ', connectedCount > 0 ? `${connectedCount} connected` : 'none', connectedCount > 0 ? 'cyan' : '#555555')}\n` +
-    `${badge('Relay   ', relayStatus === 'connected' ? '⬤ connected' : relayStatus === 'connecting' ? '… connecting' : relayStatus === 'error' ? '✖ retrying' : '— disabled', relayStatus === 'connected' ? 'green' : relayStatus === 'connecting' ? 'yellow' : relayStatus === 'error' ? 'red' : '#555555')}`
+    `${badge('Relay   ', relayStatus === 'connected' ? '⬤ connected' : relayStatus === 'connecting' ? '… connecting' : relayStatus === 'error' ? '✖ retrying' : '— disabled', relayStatus === 'connected' ? 'green' : relayStatus === 'connecting' ? 'yellow' : relayStatus === 'error' ? 'red' : '#555555')}\n` +
+    `${badge('AI      ', config.aiEnabled && config.aiApiKey ? `⬤ ${config.aiProvider}` : config.aiEnabled && !config.aiApiKey ? '⚠ no key' : '— off', config.aiEnabled && config.aiApiKey ? 'green' : config.aiEnabled ? 'yellow' : '#555555')}`
   );
 
   const states = [...phoneStates.values()].filter(s => s.authed);
@@ -503,8 +533,62 @@ screen.key('C-e', () => {
   screen.render(); urlInput.focus();
 });
 
-screen.key('C-r', () => {
-  const form = blessed.form({ parent: screen, top: 'center', left: 'center', width: 52, height: 11, border: { type: 'line' }, style: { border: { fg: 'yellow' }, bg: '#111' }, label: ' ✎  Add Word Replacement ', keys: true });
+screen.key('C-a', () => {
+  const providers = ['openai', 'anthropic', 'google'];
+  let selProvider = config.aiProvider || 'openai';
+  const form = blessed.form({ parent: screen, top: 'center', left: 'center', width: 62, height: 18, border: { type: 'line' }, style: { border: { fg: 'green' }, bg: '#111' }, label: ' 🤖  AI Summarize ', keys: true });
+  blessed.text({ parent: form, top: 1, left: 2, content: 'Provider:', style: { fg: '#888' } });
+  const provLabel = blessed.text({ parent: form, top: 1, left: 12, tags: true, style: { bg: '#111' } });
+  function updateProvLabel() { provLabel.setContent(`{green-fg}${selProvider}{/green-fg}  {#555-fg}[← →]{/#555-fg}`); screen.render(); }
+  updateProvLabel();
+  blessed.text({ parent: form, top: 3, left: 2, content: 'API Key:', style: { fg: '#888' } });
+  const keyInput = blessed.textbox({ parent: form, top: 4, left: 2, width: 56, height: 1, style: { fg: 'white', bg: '#222' }, inputOnFocus: true, value: config.aiApiKey || '' });
+  blessed.text({ parent: form, top: 6, left: 2, content: 'Model (blank = default):', style: { fg: '#888' } });
+  const modelInput = blessed.textbox({ parent: form, top: 7, left: 2, width: 56, height: 1, style: { fg: 'white', bg: '#222' }, inputOnFocus: true, value: config.aiModel || '' });
+  blessed.text({ parent: form, top: 9, left: 2, content: 'Prompt:', style: { fg: '#888' } });
+  const promptInput = blessed.textbox({ parent: form, top: 10, left: 2, width: 56, height: 1, style: { fg: 'white', bg: '#222' }, inputOnFocus: true, value: config.aiPrompt || DEFAULT_CONFIG.aiPrompt });
+  const enabledLabel = blessed.text({ parent: form, top: 12, left: 2, tags: true, style: { bg: '#111' } });
+  function updateEnabledLabel() { enabledLabel.setContent(`{#888888-fg}AI:{/#888888-fg} {${config.aiEnabled ? 'green' : 'red'}-fg}${config.aiEnabled ? 'enabled' : 'disabled'}{/${config.aiEnabled ? 'green' : 'red'}-fg}  {#555-fg}[Space to toggle]{/#555-fg}`); screen.render(); }
+  updateEnabledLabel();
+  blessed.text({ parent: form, top: 14, left: 2, content: 'Tab to switch fields, Enter to save, Esc to cancel', style: { fg: '#555' } });
+
+  // provider cycling with arrow keys on the form
+  form.key(['left', 'right'], () => {
+    const idx = providers.indexOf(selProvider);
+    selProvider = providers[(idx + (arguments[0] === 'left' ? -1 + providers.length : 1)) % providers.length];
+    updateProvLabel();
+  });
+  // simpler: just cycle on right arrow always
+  form.key('right', () => { const idx = providers.indexOf(selProvider); selProvider = providers[(idx + 1) % providers.length]; updateProvLabel(); });
+  form.key('left',  () => { const idx = providers.indexOf(selProvider); selProvider = providers[(idx - 1 + providers.length) % providers.length]; updateProvLabel(); });
+
+  keyInput.key('tab',    () => modelInput.focus());
+  keyInput.key('enter',  () => modelInput.focus());
+  modelInput.key('tab',  () => promptInput.focus());
+  modelInput.key('enter',() => promptInput.focus());
+  promptInput.key('tab', () => keyInput.focus());
+  promptInput.key('space', () => { config.aiEnabled = !config.aiEnabled; updateEnabledLabel(); });
+
+  function onEscA() { form.destroy(); screen.unkey('escape', onEscA); screen.render(); }
+  function save() {
+    screen.unkey('escape', onEscA);
+    config.aiProvider = selProvider;
+    config.aiApiKey   = keyInput.getValue().trim().slice(0, 200);
+    config.aiModel    = modelInput.getValue().trim().slice(0, 100);
+    config.aiPrompt   = promptInput.getValue().trim().slice(0, 1000) || DEFAULT_CONFIG.aiPrompt;
+    // reset cached SDK instances so they pick up the new key/provider
+    _openai = null; _anthropic = null; _google = null;
+    saveConfig(config);
+    form.destroy();
+    logPhrase(`AI: ${config.aiEnabled ? 'enabled' : 'disabled'} — provider: ${config.aiProvider}`, 'command');
+    updateStatus();
+  }
+  promptInput.key('enter', save);
+  screen.key('escape', onEscA);
+  screen.render(); keyInput.focus();
+});
+
+screen.key('C-r', () => {  const form = blessed.form({ parent: screen, top: 'center', left: 'center', width: 52, height: 11, border: { type: 'line' }, style: { border: { fg: 'yellow' }, bg: '#111' }, label: ' ✎  Add Word Replacement ', keys: true });
   blessed.text({ parent: form, top: 1, left: 2, content: 'Say this word/phrase:', style: { fg: '#888' } });
   const fromInput = blessed.textbox({ parent: form, top: 2, left: 2, width: 46, height: 1, style: { fg: 'white', bg: '#222' }, inputOnFocus: true });
   blessed.text({ parent: form, top: 4, left: 2, content: 'Type this instead:', style: { fg: '#888' } });
@@ -571,6 +655,42 @@ function wordDiff(onScreen, final) {
 }
 
 function toClipboard(text, cb) { const p = exec('xclip -selection clipboard', cb); p.stdin.write(text); p.stdin.end(); }
+
+// ─── AI summarize ─────────────────────────────────────────────────────────────
+
+const AI_DEFAULTS = { openai: 'gpt-4o-mini', anthropic: 'claude-3-5-haiku-latest', google: 'gemini-1.5-flash' };
+
+async function aiSummarize(text) {
+  if (!config.aiEnabled || !config.aiApiKey) return text;
+  const model = config.aiModel || AI_DEFAULTS[config.aiProvider] || AI_DEFAULTS.openai;
+  const prompt = config.aiPrompt || DEFAULT_CONFIG.aiPrompt;
+  try {
+    if (config.aiProvider === 'openai') {
+      const res = await getOpenAI().chat.completions.create({
+        model,
+        messages: [{ role: 'user', content: `${prompt}\n\n${text}` }],
+        max_tokens: 1024,
+      });
+      return res.choices[0]?.message?.content?.trim() || text;
+    }
+    if (config.aiProvider === 'anthropic') {
+      const res = await getAnthropic().messages.create({
+        model,
+        max_tokens: 1024,
+        messages: [{ role: 'user', content: `${prompt}\n\n${text}` }],
+      });
+      return res.content[0]?.text?.trim() || text;
+    }
+    if (config.aiProvider === 'google') {
+      const genModel = getGoogle().getGenerativeModel({ model });
+      const res = await genModel.generateContent(`${prompt}\n\n${text}`);
+      return res.response.text()?.trim() || text;
+    }
+  } catch (e) {
+    logPhrase(`AI error: ${e.message}`, 'warn');
+  }
+  return text;
+}
 
 // ─── Shared connection handler (local WSS + relay VirtualWS) ─────────────────
 
@@ -649,6 +769,7 @@ function handleConnection(ws) {
       if (typeof msg.pttMode === 'boolean')       { state.pttMode = msg.pttMode; logPhrase(`PTT: ${msg.pttMode ? 'on' : 'off'}`, 'command'); }
       if (typeof msg.language === 'string' && /^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{2,8})*$/.test(msg.language)) { state.language = msg.language; logPhrase(`Language: ${msg.language}`, 'command'); }
       if (typeof msg.paused === 'boolean')        { paused = msg.paused; broadcast({ type: 'paused', value: paused }); logPhrase(paused ? 'Paused from phone' : 'Resumed from phone', 'command'); }
+      if (typeof msg.aiEnabled === 'boolean')     { config.aiEnabled = msg.aiEnabled; saveConfig(config); logPhrase(`AI: ${msg.aiEnabled ? 'enabled' : 'disabled'}`, 'command'); updateStatus(); }
       phoneStates.set(ws, state);
       updateStatus();
       return;
@@ -708,11 +829,31 @@ function handleConnection(ws) {
       const { deleteCount, typeStr } = wordDiff(onScreen, finalText);
       if (deleteCount > 0) enqueue(`xdotool key --clearmodifiers --repeat ${Math.min(deleteCount, 500)} BackSpace`, true);
       const toType = typeStr.trimStart() + ' ';
-      typeOrClip(toType);
-      ws._lastPhrase = toType; ws._lastPhraseLen = toType.length;
-      totalPhrases++; totalWords += finalText.trim().split(/\s+/).filter(Boolean).length;
-      logPhrase(finalText, 'phrase');
-      updateStatus();
+      // AI summarize — async, but we still type the raw text immediately then
+      // replace it once the AI responds (keeps latency invisible to the user)
+      if (config.aiEnabled && config.aiApiKey) {
+        typeOrClip(toType);
+        ws._lastPhrase = toType; ws._lastPhraseLen = toType.length;
+        totalPhrases++; totalWords += finalText.trim().split(/\s+/).filter(Boolean).length;
+        logPhrase(finalText, 'phrase');
+        updateStatus();
+        aiSummarize(finalText).then(improved => {
+          if (improved === finalText) return; // no change — nothing to do
+          const improvLen = (improved.trimStart() + ' ').length;
+          const delCount  = Math.min(toType.length, 500);
+          enqueue(`xdotool key --clearmodifiers --repeat ${delCount} BackSpace`, true);
+          typeOrClip(improved.trimStart() + ' ');
+          ws._lastPhrase = improved.trimStart() + ' ';
+          ws._lastPhraseLen = ws._lastPhrase.length;
+          logPhrase(`AI (${config.aiProvider}): ${improved}`, 'command');
+        }).catch(() => {});
+      } else {
+        typeOrClip(toType);
+        ws._lastPhrase = toType; ws._lastPhraseLen = toType.length;
+        totalPhrases++; totalWords += finalText.trim().split(/\s+/).filter(Boolean).length;
+        logPhrase(finalText, 'phrase');
+        updateStatus();
+      }
     }
   });
 
