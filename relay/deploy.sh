@@ -15,8 +15,17 @@ fi
 
 echo "==> Copying files to $INSTALL_DIR..."
 mkdir -p "$INSTALL_DIR"
-cp relay.js package.json "$INSTALL_DIR/"
-cp -r public "$INSTALL_DIR/" 2>/dev/null || true
+cp relay.js package.json package-lock.json "$INSTALL_DIR/"
+
+# Copy public/ — check relay/public/ first, then fall back to ../public/
+if [ -d "public" ]; then
+  cp -r public "$INSTALL_DIR/"
+elif [ -d "../public" ]; then
+  cp -r ../public "$INSTALL_DIR/"
+else
+  echo "WARNING: no public/ directory found — phones won't get index.html from relay"
+  echo "         Copy your public/ folder next to relay.js on the VPS manually"
+fi
 
 echo "==> Installing dependencies..."
 npm install --omit=dev --prefix "$INSTALL_DIR"
