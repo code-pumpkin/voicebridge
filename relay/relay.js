@@ -220,4 +220,13 @@ function log(msg) {
   console.log(`[${t}] ${msg}`);
 }
 
+function gracefulShutdown(signal) {
+  log(`${signal} received — closing all connections`);
+  wss.clients.forEach(c => { try { c.close(1001, 'server shutting down'); } catch {} });
+  server.close(() => { log('relay stopped'); process.exit(0); });
+  setTimeout(() => process.exit(1), 5000); // force exit if close hangs
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+
 server.listen(PORT, () => log(`relay listening on :${PORT}`));
