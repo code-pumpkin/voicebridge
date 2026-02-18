@@ -100,7 +100,7 @@ Press **Ctrl+A** in the TUI:
 
 | Field | Notes |
 |-------|-------|
-| Provider | `←`/`→` to cycle: `openai`, `anthropic`, `google` |
+| Provider | `Ctrl+N` to cycle: `openai`, `anthropic`, `google` |
 | API Key | your key for the selected provider |
 | Model | leave blank for the default (`gpt-4o-mini` / `claude-3-5-haiku-latest` / `gemini-1.5-flash`) |
 | Prompt | customise the rewrite instruction |
