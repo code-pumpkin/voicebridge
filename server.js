@@ -834,9 +834,8 @@ function handleConnection(ws) {
         logPhrase(finalText, 'phrase');
         updateStatus();
         aiSummarize(finalText).then(improved => {
-          if (improved === finalText) return; // no change — nothing to do
-          const improvLen = (improved.trimStart() + ' ').length;
-          const delCount  = Math.min(toType.length, 500);
+          if (improved === finalText) return;
+          const delCount = Math.min(toType.length, 500);
           enqueue(`xdotool key --clearmodifiers --repeat ${delCount} BackSpace`, true);
           typeOrClip(improved.trimStart() + ' ');
           ws._lastPhrase = improved.trimStart() + ' ';
