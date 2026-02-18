@@ -520,7 +520,7 @@ function handleConnection(ws) {
     if (msg.type === 'config') {
       if (typeof msg.clipboardMode === 'boolean') { state.clipboardMode = msg.clipboardMode; config.clipboardMode = msg.clipboardMode; saveConfig(config); logPhrase(`Clipboard: ${msg.clipboardMode ? 'on' : 'off'}`, 'command'); }
       if (typeof msg.pttMode === 'boolean')       { state.pttMode = msg.pttMode; logPhrase(`PTT: ${msg.pttMode ? 'on' : 'off'}`, 'command'); }
-      if (typeof msg.language === 'string')       { state.language = msg.language; logPhrase(`Language: ${msg.language}`, 'command'); }
+      if (typeof msg.language === 'string' && /^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{2,8})*$/.test(msg.language)) { state.language = msg.language; logPhrase(`Language: ${msg.language}`, 'command'); }
       if (typeof msg.paused === 'boolean')        { paused = msg.paused; broadcast({ type: 'paused', value: paused }); logPhrase(paused ? 'Paused from phone' : 'Resumed from phone', 'command'); }
       phoneStates.set(ws, state);
       updateStatus();
