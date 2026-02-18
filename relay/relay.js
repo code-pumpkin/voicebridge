@@ -9,12 +9,14 @@ const crypto  = require('crypto');
 const WebSocket = require('ws');
 const express = require('express');
 
-const PORT      = process.env.PORT     || 4001;
-const CERT_DIR  = process.env.CERT_DIR || path.join(__dirname, 'certs');
-const PUBLIC    = process.env.PUBLIC   || path.join(__dirname, 'public');
-const RELAY_SECRET = process.env.RELAY_SECRET || ''; // set this on the VPS
-const PING_MS   = 25000;
-const PING_TTL  = 10000;
+const PORT         = process.env.PORT         || 4001;
+const CERT_DIR     = process.env.CERT_DIR     || path.join(__dirname, 'certs');
+const PUBLIC       = process.env.PUBLIC       || path.join(__dirname, 'public');
+const RELAY_SECRET = process.env.RELAY_SECRET || '';
+const MAX_CLIENTS  = parseInt(process.env.MAX_CLIENTS || '10', 10);
+const PING_MS      = 25000;
+const PING_TTL     = 10000;
+const REG_TIMEOUT  = 8000; // ms to send first message before being dropped
 
 // ─── Rooms ────────────────────────────────────────────────────────────────────
 // token → { host: ws|null, clients: Map<clientId, ws> }
@@ -101,12 +103,18 @@ wss.on('connection', (ws) => {
   startKeepalive(ws);
   let role = null, token = null, clientId = null;
 
+  // drop unregistered connections that never send a first message
+  const regTimer = setTimeout(() => {
+    if (!role) { ws.terminate(); log('dropped unregistered socket (timeout)'); }
+  }, REG_TIMEOUT);
+
   ws.on('message', (data) => {
     let msg;
     try { msg = JSON.parse(data.toString()); } catch { return; }
 
     // ── First message must be a registration ──
     if (!role) {
+      clearTimeout(regTimer);
       if (!msg.token) { ws.close(); return; }
       token = msg.token;
       const room = getRoom(token);
@@ -135,6 +143,12 @@ wss.on('connection', (ws) => {
       }
 
       if (msg.type === 'client-connect') {
+        if (room.clients.size >= MAX_CLIENTS) {
+          ws.send(JSON.stringify({ type: 'error', reason: 'room-full' }));
+          ws.close();
+          log(`client rejected — room full  token=${token.slice(0,8)}…`);
+          return;
+        }
         role     = 'client';
         clientId = crypto.randomBytes(6).toString('hex');
         room.clients.set(clientId, ws);
