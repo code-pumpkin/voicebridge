@@ -22,12 +22,15 @@ class VirtualWS extends EventEmitter {
   }
   send(data) {
     if (this.readyState !== WebSocket.OPEN) return;
-    this._relayWs.send(JSON.stringify({ type: 'host-message', clientId: this.clientId, data }));
+    if (this._relayWs.readyState !== WebSocket.OPEN) return;
+    try { this._relayWs.send(JSON.stringify({ type: 'host-message', clientId: this.clientId, data })); } catch {}
   }
   close() {
     if (this.readyState === WebSocket.CLOSED) return;
     this.readyState = WebSocket.CLOSED;
-    this._relayWs.send(JSON.stringify({ type: 'host-close', clientId: this.clientId }));
+    if (this._relayWs.readyState === WebSocket.OPEN) {
+      try { this._relayWs.send(JSON.stringify({ type: 'host-close', clientId: this.clientId })); } catch {}
+    }
     this.emit('close');
   }
   // called by relay client when a message arrives for this virtual socket
