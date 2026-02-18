@@ -536,7 +536,7 @@ screen.key('C-e', () => {
 screen.key('C-a', () => {
   const providers = ['openai', 'anthropic', 'google'];
   let selProvider = config.aiProvider || 'openai';
-  const form = blessed.form({ parent: screen, top: 'center', left: 'center', width: 62, height: 18, border: { type: 'line' }, style: { border: { fg: 'green' }, bg: '#111' }, label: ' 🤖  AI Summarize ', keys: true });
+  const form = blessed.form({ parent: screen, top: 'center', left: 'center', width: 62, height: 20, border: { type: 'line' }, style: { border: { fg: 'green' }, bg: '#111' }, label: ' 🤖  AI Summarize ', keys: true });
   blessed.text({ parent: form, top: 1, left: 2, content: 'Provider:', style: { fg: '#888' } });
   const provLabel = blessed.text({ parent: form, top: 1, left: 12, tags: true, style: { bg: '#111' } });
   function updateProvLabel() { provLabel.setContent(`{green-fg}${selProvider}{/green-fg}  {#555-fg}[← →]{/#555-fg}`); screen.render(); }
