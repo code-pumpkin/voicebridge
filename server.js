@@ -126,6 +126,7 @@ let totalPhrases   = 0;
 let totalWords     = 0;
 let localIP        = 'localhost';
 let startTime      = Date.now();
+let renderQR       = () => {}; // assigned after server starts
 
 const phoneStates  = new Map(); // ws -> { language, pttMode, clipboardMode, authed, deviceToken, pin }
 const pendingPins  = new Map(); // pin -> ws  (waiting for TUI approval)
@@ -348,6 +349,7 @@ screen.key('C-e', () => {
     form.destroy();
     logPhrase(val ? `Relay URL set: ${val}` : 'Relay disabled', 'command');
     updateStatus();
+    renderQR();
     // reconnect with new URL
     if (relayWs) { try { relayWs.terminate(); } catch {} }
     connectRelay();
@@ -614,14 +616,28 @@ server.listen(config.port, '0.0.0.0', () => {
 
   updateStatus();
 
-  const url = `https://${localIP}:${config.port}/${config.urlToken}`;
+  const localUrl = `https://${localIP}:${config.port}/${config.urlToken}`;
 
-  // Render QR using block characters for crisp display
-  QRCode.toString(url, { type: 'terminal', small: true }, (err, qrStr) => {
-    if (!err) { qrBox.setContent(qrStr); screen.render(); }
-  });
+  renderQR = function() {
+    const displayUrl = (config.relayUrl && relayStatus === 'connected')
+      ? config.relayUrl.replace(/^wss:\/\//, 'https://').replace(/\/$/, '') + `/${config.urlToken}`
+      : localUrl;
+    qrLabel.setContent(`{#555555-fg}SCAN TO CONNECT${config.relayUrl ? ' (relay)' : ' (local)'}{/#555555-fg}`);
+    QRCode.toString(displayUrl, { type: 'terminal', small: true }, (err, qrStr) => {
+      if (!err) { qrBox.setContent(qrStr); screen.render(); }
+    });
+  };
 
-  logPhrase(`Server started — ${url}`, 'connect');
+  // Re-render QR whenever relay status changes
+  const _origUpdateStatus = updateStatus;
+  let _lastRelayStatus = relayStatus;
+  setInterval(() => {
+    if (relayStatus !== _lastRelayStatus) { _lastRelayStatus = relayStatus; renderQR(); }
+  }, 1000);
+
+  renderQR();
+
+  logPhrase(`Server started — ${localUrl}`, 'connect');
   logPhrase('Scan QR or open URL on your phone', 'info');
   if (config.relayUrl) logPhrase(`Relay URL set — connecting to ${config.relayUrl}`, 'info');
   else logPhrase('No relay configured — local only (set relayUrl in config.json)', 'info');
