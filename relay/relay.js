@@ -188,9 +188,8 @@ wss.on('connection', (ws, req) => {
         room.clients.set(clientId, ws);
         if (room.host && room.host.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'connected', clientId }));
-          room.host.send(JSON.stringify({ type: 'client-connect', clientId }));
+          try { room.host.send(JSON.stringify({ type: 'client-connect', clientId })); } catch {}
         } else {
-          // no host — tell phone to wait/retry
           ws.send(JSON.stringify({ type: 'error', reason: 'host-unavailable' }));
           room.clients.delete(clientId);
           ws.close();
@@ -206,7 +205,7 @@ wss.on('connection', (ws, req) => {
     if (role === 'client') {
       const room = getRoom(token);
       if (room.host && room.host.readyState === WebSocket.OPEN)
-        room.host.send(JSON.stringify({ type: 'client-message', clientId, data: data.toString() }));
+        try { room.host.send(JSON.stringify({ type: 'client-message', clientId, data: data.toString() })); } catch {}
       return;
     }
 
@@ -216,7 +215,7 @@ wss.on('connection', (ws, req) => {
       if (!msg.clientId) return;
       if (msg.type === 'host-message') {
         const client = room.clients.get(msg.clientId);
-        if (client && client.readyState === WebSocket.OPEN) client.send(msg.data);
+        if (client && client.readyState === WebSocket.OPEN) try { client.send(msg.data); } catch {}
       } else if (msg.type === 'host-close') {
         const client = room.clients.get(msg.clientId);
         if (client) client.close();
@@ -242,7 +241,7 @@ wss.on('connection', (ws, req) => {
     if (role === 'client' && clientId) {
       room.clients.delete(clientId);
       if (room.host && room.host.readyState === WebSocket.OPEN)
-        room.host.send(JSON.stringify({ type: 'client-disconnect', clientId }));
+        try { room.host.send(JSON.stringify({ type: 'client-disconnect', clientId })); } catch {}
       log(`client disconnected  id=${clientId}`);
       cleanRoom(token);
     }
