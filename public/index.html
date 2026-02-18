@@ -308,10 +308,11 @@
     }
 
     // ── History ───────────────────────────────────────────────────────────────
+    function escapeHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     function addHistory(text) {
       const item = document.createElement('div');
       item.className = 'history-item';
-      item.innerHTML = `<span>${text}</span><button title="Resend">↩</button>`;
+      item.innerHTML = `<span>${escapeHtml(text)}</span><button title="Resend">↩</button>`;
       item.querySelector('button').addEventListener('click', () => send({ type: 'final', text }));
       historyEl.prepend(item);
     }
@@ -367,8 +368,8 @@
           if (e.results[i].isFinal) final += t; else interim += t;
         }
         transcriptEl.innerHTML = final
-          ? `${final}<span class="interim"> ${interim}</span>`
-          : `<span class="interim">${interim || '...'}</span>`;
+          ? `${escapeHtml(final)}<span class="interim"> ${escapeHtml(interim)}</span>`
+          : `<span class="interim">${escapeHtml(interim) || '...'}</span>`;
 
         if (final) { send({ type: 'final', text: final }); addHistory(final.trim()); }
         else if (interim) { send({ type: 'interim', text: interim }); }
