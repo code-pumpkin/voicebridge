@@ -833,18 +833,20 @@ function handleConnection(ws) {
       const { deleteCount, typeStr } = wordDiff(onScreen, finalText);
       if (deleteCount > 0) enqueue(`xdotool key --clearmodifiers --repeat ${Math.min(deleteCount, 500)} BackSpace`, true);
       const toType = typeStr.trimStart() + ' ';
-      // AI summarize — async, but we still type the raw text immediately then
-      // replace it once the AI responds (keeps latency invisible to the user)
+      // AI summarize — type raw text immediately, replace once AI responds
       if (config.aiEnabled && config.aiApiKey) {
         typeOrClip(toType);
         ws._lastPhrase = toType; ws._lastPhraseLen = toType.length;
         totalPhrases++; totalWords += finalText.trim().split(/\s+/).filter(Boolean).length;
         logPhrase(finalText, 'phrase');
         updateStatus();
+        // seq guard — if another phrase arrives before AI responds, skip replacement
+        ws._aiSeq = (ws._aiSeq || 0) + 1;
+        const seq = ws._aiSeq;
         aiSummarize(finalText).then(improved => {
           if (improved === finalText) return;
-          // phone may have disconnected while AI was in-flight — bail out
           if (ws.readyState !== WebSocket.OPEN) return;
+          if (ws._aiSeq !== seq) return; // newer phrase already typed — don't clobber it
           const delCount = Math.min(toType.length, 500);
           enqueue(`xdotool key --clearmodifiers --repeat ${delCount} BackSpace`, true);
           typeOrClip(improved.trimStart() + ' ');
