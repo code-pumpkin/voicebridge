@@ -873,7 +873,7 @@ function handleConnection(ws) {
 
   ws.on('close', () => {
     const state = phoneStates.get(ws);
-    if (state && state.authed) connectedCount--;
+    if (state && state.authed) connectedCount = Math.max(0, connectedCount - 1);
     phoneStates.delete(ws);
     // flush pending xdotool queue so stale commands don't fire after disconnect
     if (ws._queue) ws._queue.length = 0;
