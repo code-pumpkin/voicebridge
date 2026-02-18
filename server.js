@@ -106,6 +106,9 @@ if (typeof config.relayRejectUnauthorized !== 'boolean') config.relayRejectUnaut
 // Sanitize string fields
 if (typeof config.relayUrl !== 'string') config.relayUrl = '';
 if (typeof config.relaySecret !== 'string') config.relaySecret = '';
+// Cap string lengths to prevent oversized values from config.json
+config.relayUrl    = config.relayUrl.slice(0, 500);
+config.relaySecret = config.relaySecret.slice(0, 200);
 // Sanitize object fields — discard if not plain objects
 if (typeof config.wordReplacements !== 'object' || Array.isArray(config.wordReplacements) || !config.wordReplacements) config.wordReplacements = {};
 if (typeof config.voiceCommandsExtra !== 'object' || Array.isArray(config.voiceCommandsExtra) || !config.voiceCommandsExtra) config.voiceCommandsExtra = {};
