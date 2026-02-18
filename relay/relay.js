@@ -60,7 +60,27 @@ function cleanRoom(token) {
 // ─── HTTP ─────────────────────────────────────────────────────────────────────
 const app = express();
 
+// Cache index.html in memory — read once, serve forever (restart relay to pick up changes)
+let indexHtmlCache = null;
+function getIndexHtml() {
+  if (indexHtmlCache !== null) return indexHtmlCache;
+  const html = path.join(PUBLIC, 'index.html');
+  if (!fs.existsSync(html)) return null;
+  indexHtmlCache = fs.readFileSync(html, 'utf8');
+  return indexHtmlCache;
+}
+
 app.get('/health', (req, res) => {
+  // Require secret if one is configured — Bearer token or ?secret= query param
+  if (RELAY_SECRET) {
+    const auth = req.headers.authorization || '';
+    const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+    const query  = req.query.secret || null;
+    if (bearer !== RELAY_SECRET && query !== RELAY_SECRET) {
+      res.status(401).json({ error: 'unauthorized' });
+      return;
+    }
+  }
   const roomStats = [];
   rooms.forEach((room, token) => {
     roomStats.push({ token: token.slice(0,8) + '…', host: !!room.host, clients: room.clients.size });
@@ -70,15 +90,14 @@ app.get('/health', (req, res) => {
 
 // Serve index.html with injected RELAY_TOKEN so phone knows it's in relay mode
 app.get('/:token', (req, res) => {
-  const html = path.join(PUBLIC, 'index.html');
-  if (!fs.existsSync(html)) {
+  const content = getIndexHtml();
+  if (!content) {
     res.status(503).send('index.html not found — copy public/ next to relay.js on the VPS');
     return;
   }
-  let content = fs.readFileSync(html, 'utf8');
-  content = content.replace('</head>', `<script>window.RELAY_TOKEN="${req.params.token}";</script>\n</head>`);
+  const injected = content.replace('</head>', `<script>window.RELAY_TOKEN="${req.params.token}";</script>\n</head>`);
   res.setHeader('Content-Type', 'text/html');
-  res.send(content);
+  res.send(injected);
 });
 app.get('/{*path}', (req, res) => res.status(403).send('Forbidden'));
 
