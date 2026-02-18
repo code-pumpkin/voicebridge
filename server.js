@@ -83,6 +83,12 @@ const DEFAULT_CONFIG = {
 
 let config   = { ...DEFAULT_CONFIG, ...loadConfig() };
 let sessions = loadSessions(); // { deviceToken: { name, approved, lastSeen } }
+// Strip any malformed session entries on load
+for (const [token, s] of Object.entries(sessions)) {
+  if (!token || !/^[a-f0-9]{32}$/.test(token) || typeof s !== 'object' || s === null || Array.isArray(s) || s.approved !== true) {
+    delete sessions[token];
+  }
+}
 
 // Sanitize port — must be a valid integer in range
 if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) {
