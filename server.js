@@ -561,14 +561,17 @@ screen.key('C-a', () => {
   keyInput.key('C-n',    cycleProvider);
   modelInput.key('C-n',  cycleProvider);
   promptInput.key('C-n', cycleProvider);
+  const toggleEnabled = () => { pendingEnabled = !pendingEnabled; updateEnabledLabel(); };
+  form.key('C-space',       toggleEnabled);
+  keyInput.key('C-space',   toggleEnabled);
+  modelInput.key('C-space', toggleEnabled);
+  promptInput.key('C-space',toggleEnabled);
 
   keyInput.key('tab',    () => modelInput.focus());
   keyInput.key('enter',  () => modelInput.focus());
   modelInput.key('tab',  () => promptInput.focus());
   modelInput.key('enter',() => promptInput.focus());
   promptInput.key('tab', () => keyInput.focus());
-  // Ctrl+Space toggles pending state only — not committed until save
-  form.key('C-space', () => { pendingEnabled = !pendingEnabled; updateEnabledLabel(); });
 
   function onEscA() { form.destroy(); screen.unkey('escape', onEscA); screen.render(); }
   function save() {
