@@ -97,7 +97,7 @@ try {
 }
 
 const server = https.createServer(serverOpts, app);
-const wss    = new WebSocket.Server({ server });
+const wss    = new WebSocket.Server({ server, maxPayload: 64 * 1024 }); // 64KB max frame
 
 // ─── Keepalive ────────────────────────────────────────────────────────────────
 function startKeepalive(ws) {

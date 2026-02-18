@@ -141,7 +141,7 @@ const server = https.createServer({
   cert: fs.readFileSync(path.join(__dirname, 'certs/cert.pem')),
 }, app);
 
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ server, maxPayload: 64 * 1024 }); // 64KB max frame
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
