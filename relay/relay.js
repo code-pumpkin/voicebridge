@@ -16,7 +16,29 @@ const RELAY_SECRET = process.env.RELAY_SECRET || '';
 const MAX_CLIENTS  = parseInt(process.env.MAX_CLIENTS || '10', 10);
 const PING_MS      = 25000;
 const PING_TTL     = 10000;
-const REG_TIMEOUT  = 8000; // ms to send first message before being dropped
+const REG_TIMEOUT  = 8000;
+const RATE_WINDOW  = 60000; // 1 minute window
+const RATE_MAX     = 20;    // max connections per IP per window
+const TOKEN_RE     = /^[a-f0-9]{8,64}$/; // valid urlToken format
+
+// ─── Rate limiter ─────────────────────────────────────────────────────────────
+// ip → { count, resetAt }
+const ipRates = new Map();
+
+function checkRate(ip) {
+  const now  = Date.now();
+  const entry = ipRates.get(ip) || { count: 0, resetAt: now + RATE_WINDOW };
+  if (now > entry.resetAt) { entry.count = 0; entry.resetAt = now + RATE_WINDOW; }
+  entry.count++;
+  ipRates.set(ip, entry);
+  return entry.count <= RATE_MAX;
+}
+
+// clean up stale rate entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  ipRates.forEach((v, k) => { if (now > v.resetAt) ipRates.delete(k); });
+}, 300000);
 
 // ─── Rooms ────────────────────────────────────────────────────────────────────
 // token → { host: ws|null, clients: Map<clientId, ws> }
@@ -99,7 +121,15 @@ function startKeepalive(ws) {
 }
 
 // ─── WebSocket broker ─────────────────────────────────────────────────────────
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
+  const ip = req.socket.remoteAddress || 'unknown';
+  if (!checkRate(ip)) {
+    ws.send(JSON.stringify({ type: 'error', reason: 'rate-limited' }));
+    ws.terminate();
+    log(`rate-limited  ip=${ip}`);
+    return;
+  }
+
   startKeepalive(ws);
   let role = null, token = null, clientId = null;
 
@@ -116,7 +146,7 @@ wss.on('connection', (ws) => {
     // ── First message must be a registration ──
     if (!role) {
       clearTimeout(regTimer);
-      if (!msg.token) { ws.close(); return; }
+      if (!msg.token || !TOKEN_RE.test(msg.token)) { ws.close(); return; }
       token = msg.token;
       const room = getRoom(token);
 
