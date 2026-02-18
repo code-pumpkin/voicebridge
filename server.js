@@ -806,7 +806,7 @@ function connectRelay() {
     }
 
     if (msg.type === 'client-connect') {
-      if (typeof msg.clientId !== 'string' || !msg.clientId) return;
+      if (typeof msg.clientId !== 'string' || !/^[a-f0-9]{12}$/.test(msg.clientId)) return;
       const vws = new VirtualWS(msg.clientId, ws);
       virtualClients.set(msg.clientId, vws);
       handleConnection(vws);
@@ -814,14 +814,14 @@ function connectRelay() {
     }
 
     if (msg.type === 'client-message') {
-      if (typeof msg.clientId !== 'string') return;
+      if (typeof msg.clientId !== 'string' || !/^[a-f0-9]{12}$/.test(msg.clientId)) return;
       const vws = virtualClients.get(msg.clientId);
       if (vws && typeof msg.data === 'string') vws._receive(msg.data);
       return;
     }
 
     if (msg.type === 'client-disconnect') {
-      if (typeof msg.clientId !== 'string') return;
+      if (typeof msg.clientId !== 'string' || !/^[a-f0-9]{12}$/.test(msg.clientId)) return;
       const vws = virtualClients.get(msg.clientId);
       if (vws) { vws.readyState = WebSocket.CLOSED; vws.emit('close'); }
       virtualClients.delete(msg.clientId);
