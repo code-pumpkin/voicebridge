@@ -599,6 +599,17 @@ function handleConnection(ws) {
       if (state && !state.authed) { ws.terminate(); }
     }, LOCAL_REG_TIMEOUT);
     ws.once('close', () => clearTimeout(regTimer));
+
+    // keepalive — ping phone every 25s, terminate if no pong within 10s
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; clearTimeout(ws._pongTimeout); });
+    ws._pingTimer = setInterval(() => {
+      if (!ws.isAlive) { clearInterval(ws._pingTimer); ws.terminate(); return; }
+      ws.isAlive = false;
+      ws.ping();
+      ws._pongTimeout = setTimeout(() => { if (!ws.isAlive) ws.terminate(); }, 10000);
+    }, 25000);
+    ws.on('close', () => { clearInterval(ws._pingTimer); clearTimeout(ws._pongTimeout); });
   }
 
   ws.on('message', (data) => {
