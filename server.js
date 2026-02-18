@@ -791,5 +791,5 @@ function shutdown() {
 }
 process.on('SIGTERM', shutdown);
 process.on('SIGINT',  shutdown);
-process.on('uncaughtException',  (err) => logPhrase(`uncaughtException: ${err.message}`, 'warn'));
-process.on('unhandledRejection', (err) => logPhrase(`unhandledRejection: ${err}`, 'warn'));
+process.on('uncaughtException',  (err) => { try { logPhrase(`uncaughtException: ${err.message}`, 'warn'); } catch { console.error('uncaughtException:', err); } });
+process.on('unhandledRejection', (err) => { try { logPhrase(`unhandledRejection: ${err}`, 'warn'); } catch { console.error('unhandledRejection:', err); } });
