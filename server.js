@@ -503,14 +503,17 @@ screen.key('C-e', () => {
   blessed.text({ parent: form, top: 4, left: 2, content: 'Relay secret (leave blank if none):', style: { fg: '#888' } });
   const secretInput = blessed.textbox({ parent: form, top: 5, left: 2, width: 54, height: 1, style: { fg: 'white', bg: '#222' }, inputOnFocus: true, value: config.relaySecret || '' });
   const tlsLabel = blessed.text({ parent: form, top: 7, left: 2, tags: true, style: { fg: '#888', bg: '#111' } });
-  function updateTlsLabel() { tlsLabel.setContent(`{#888888-fg}TLS verify:{/#888888-fg} {${rejectUnauth ? 'green' : 'yellow'}-fg}${rejectUnauth ? 'on (prod/LE)' : 'off (self-signed)'}{/${rejectUnauth ? 'green' : 'yellow'}-fg}  {#555-fg}[Space to toggle]{/#555-fg}`); screen.render(); }
+  function updateTlsLabel() { tlsLabel.setContent(`{#888888-fg}TLS verify:{/#888888-fg} {${rejectUnauth ? 'green' : 'yellow'}-fg}${rejectUnauth ? 'on (prod/LE)' : 'off (self-signed)'}{/${rejectUnauth ? 'green' : 'yellow'}-fg}  {#555-fg}[Ctrl+Space to toggle]{/#555-fg}`); screen.render(); }
   updateTlsLabel();
   blessed.text({ parent: form, top: 9,  left: 2, content: 'e.g. wss://yourserver.com:4001', style: { fg: '#555' } });
-  blessed.text({ parent: form, top: 10, left: 2, content: 'Tab to switch fields, Enter to save, Esc to cancel', style: { fg: '#555' } });
+  blessed.text({ parent: form, top: 10, left: 2, content: 'Tab to switch fields, Ctrl+Space to toggle TLS, Enter to save, Esc to cancel', style: { fg: '#555' } });
   urlInput.key('tab',   () => secretInput.focus());
-  urlInput.key('enter', () => secretInput.focus()); // Enter on URL field moves to secret
+  urlInput.key('enter', () => secretInput.focus());
   secretInput.key('tab', () => urlInput.focus());
-  secretInput.key('space', () => { rejectUnauth = !rejectUnauth; updateTlsLabel(); });
+  const toggleTls = () => { rejectUnauth = !rejectUnauth; updateTlsLabel(); };
+  form.key('C-space',        toggleTls);
+  urlInput.key('C-space',    toggleTls);
+  secretInput.key('C-space', toggleTls);
   function onEscE() { form.destroy(); screen.unkey('escape', onEscE); screen.render(); }
   function save() {
     screen.unkey('escape', onEscE);
