@@ -351,16 +351,14 @@ function _showPinPopup(pin, ws) {
     const state = phoneStates.get(ws);
     if (state) { state.authed = true; state.deviceToken = deviceToken; }
     connectedCount++;
-    if (ws.readyState === WebSocket.OPEN)
-      ws.send(JSON.stringify({ type: 'auth', status: 'approved', deviceToken }));
+    safeSend(ws, { type: 'auth', status: 'approved', deviceToken });
     logPhrase(`Device approved — token saved`, 'auth');
     updateStatus();
   }
 
   function onN() {
     cleanup();
-    if (ws.readyState === WebSocket.OPEN)
-      ws.send(JSON.stringify({ type: 'auth', status: 'rejected' }));
+    safeSend(ws, { type: 'auth', status: 'rejected' });
     ws.close();
     logPhrase(`Device rejected`, 'warn');
   }
@@ -460,8 +458,8 @@ screen.key('C-d', () => {
 
 function runCmd(cmd, cb) { exec(cmd, (err) => { if (err) logPhrase(`xdotool: ${err.message}`, 'warn'); cb && cb(); }); }
 function escape(text) { return text.replace(/'/g, "'\\''"); }
-// sanitize xdotool key names — only allow alphanumeric, hyphen, underscore, space (for chaining)
 function safeKey(key) { return String(key).replace(/[^a-zA-Z0-9_\- ]/g, ''); }
+function safeSend(ws, data) { if (ws && ws.readyState === WebSocket.OPEN) { try { ws.send(typeof data === 'string' ? data : JSON.stringify(data)); } catch {} } }
 
 function applyReplacements(text) {
   let out = text;
@@ -508,21 +506,21 @@ function handleConnection(ws) {
         state.deviceToken = msg.deviceToken;
         phoneStates.set(ws, state);
         connectedCount++;
-        ws.send(JSON.stringify({ type: 'auth', status: 'approved', deviceToken: msg.deviceToken }));
-        ws.send(JSON.stringify({ type: 'paused', value: paused }));
+        safeSend(ws, { type: 'auth', status: 'approved', deviceToken: msg.deviceToken });
+        safeSend(ws, { type: 'paused', value: paused });
         logPhrase(`Known device reconnected`, 'connect');
         updateStatus();
         return;
       }
       // new device — generate PIN, show popup
       const pin = String(Math.floor(100000 + Math.random() * 900000));
-      ws.send(JSON.stringify({ type: 'auth', status: 'pin', pin }));
+      safeSend(ws, { type: 'auth', status: 'pin', pin });
       logPhrase(`New device — PIN: ${pin}`, 'auth');
       showPinPrompt(pin, ws);
       return;
     }
 
-    if (!state.authed) { ws.send(JSON.stringify({ type: 'auth', status: 'required' })); return; }
+    if (!state.authed) { safeSend(ws, { type: 'auth', status: 'required' }); return; }
 
     // ── Config updates ──
     if (msg.type === 'config') {
@@ -636,7 +634,7 @@ function connectRelay() {
 
   relayWs.on('open', () => {
     relayStatus = 'connected';
-    relayWs.send(JSON.stringify({ type: 'host-register', token: config.urlToken, secret: config.relaySecret || '' }));
+    safeSend(relayWs, { type: 'host-register', token: config.urlToken, secret: config.relaySecret || '' });
     logPhrase(`Relay connected — ${url}`, 'connect');
     updateStatus();
     renderQR();
