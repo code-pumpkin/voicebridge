@@ -698,3 +698,12 @@ server.listen(config.port, '0.0.0.0', () => {
 });
 
 process.on('exit', () => { try { screen.destroy(); } catch {} });
+
+function shutdown() {
+  relayStopped = true;
+  if (relayWs) { try { relayWs.terminate(); } catch {} }
+  try { screen.destroy(); } catch {}
+  process.exit(0);
+}
+process.on('SIGTERM', shutdown);
+process.on('SIGINT',  shutdown);
