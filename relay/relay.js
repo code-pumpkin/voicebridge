@@ -169,6 +169,7 @@ wss.on('connection', (ws, req) => {
     if (data.length > MAX_MSG_BYTES) { ws.terminate(); log(`oversized message from ${role || 'unregistered'} — terminated`); return; }
     let msg;
     try { msg = JSON.parse(data.toString()); } catch { return; }
+    if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return;
 
     // ── First message must be a registration ──
     if (!role) {
