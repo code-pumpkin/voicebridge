@@ -347,7 +347,9 @@ screen.key('C-e', () => {
   blessed.text({ parent: form, top: 8, left: 2, content: 'Tab to switch fields, Enter to save, Esc to cancel', style: { fg: '#555' } });
   urlInput.key('tab', () => secretInput.focus());
   secretInput.key('tab', () => urlInput.focus());
+  function onEscE() { form.destroy(); screen.unkey('escape', onEscE); screen.render(); }
   function save() {
+    screen.unkey('escape', onEscE);
     const val    = urlInput.getValue().trim();
     const secret = secretInput.getValue().trim();
     config.relayUrl    = val;
@@ -363,7 +365,7 @@ screen.key('C-e', () => {
   }
   urlInput.key('enter', save);
   secretInput.key('enter', save);
-  screen.key('escape', () => { form.destroy(); screen.render(); });
+  screen.key('escape', onEscE);
   screen.render(); urlInput.focus();
 });
 
@@ -377,12 +379,14 @@ screen.key('C-r', () => {
   fromInput.focus();
   fromInput.key('tab', () => toInput.focus());
   toInput.key('tab', () => fromInput.focus());
+  function onEscR() { form.destroy(); screen.unkey('escape', onEscR); screen.render(); }
   toInput.key('enter', () => {
+    screen.unkey('escape', onEscR);
     const from = fromInput.getValue().trim().toLowerCase(), to = toInput.getValue().trim();
     if (from && to) { config.wordReplacements[from] = to; saveConfig(config); logPhrase(`Replacement: "${from}" → "${to}"`, 'command'); }
     form.destroy(); updateStatus();
   });
-  screen.key('escape', () => { form.destroy(); screen.render(); });
+  screen.key('escape', onEscR);
   screen.render(); fromInput.focus();
 });
 
