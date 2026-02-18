@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' wss:; base-uri 'self'">
   <title>Mic Input</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -260,6 +261,7 @@
           wsStatusEl.textContent = 'room full';
           wsStatusEl.className = 'disconnected';
           ws.onclose = () => {
+            authed = false;
             wsStatusEl.textContent = 'room full — reload to retry';
             wsStatusEl.className = 'disconnected';
           };
@@ -271,6 +273,7 @@
           wsStatusEl.textContent = 'rate limited — wait 30s';
           wsStatusEl.className = 'disconnected';
           ws.onclose = () => {
+            authed = false;
             wsStatusEl.textContent = 'rate limited — retrying in 30s';
             setTimeout(connectWS, 30000);
           };
@@ -386,7 +389,7 @@
       };
 
       recognition.onerror = (e) => { if (e.error === 'no-speech') return; statusEl.textContent = `Error: ${e.error}`; stopListening(); };
-      recognition.onend   = () => { if (listening && !pttMode) recognition.start(); };
+      recognition.onend   = () => { if (listening && !pttMode) setTimeout(() => { if (listening && !pttMode) recognition.start(); }, 300); };
       recognition.start();
     }
 

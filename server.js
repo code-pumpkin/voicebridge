@@ -152,6 +152,14 @@ function getVoiceCommands() {
 
 const app = express();
 
+// ─── Security headers ─────────────────────────────────────────────────────────
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  next();
+});
+
 // Only serve the app if URL token matches
 app.get(`/${config.urlToken}`, (req, res) => {
   res.sendFile(path.join(__dirname, 'public/index.html'));

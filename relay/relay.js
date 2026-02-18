@@ -60,6 +60,14 @@ function cleanRoom(token) {
 // ─── HTTP ─────────────────────────────────────────────────────────────────────
 const app = express();
 
+// ─── Security headers ─────────────────────────────────────────────────────────
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  next();
+});
+
 // Cache index.html in memory — read once, serve forever (restart relay to pick up changes)
 let indexHtmlCache = null;
 function getIndexHtml() {
