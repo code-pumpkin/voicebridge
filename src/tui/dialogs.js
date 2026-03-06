@@ -282,13 +282,13 @@ function showAiSettings(ctx) {
     config.aiPrompt = promptBox.getValue().trim().slice(0, 1000) || DEFAULT_CONFIG.aiPrompt;
     const newKey = keyInput.getValue().trim().slice(0, 200);
     if (newKey && !newKey.includes('...')) {
-      process.env.VOICEBRIDGE_AI_KEY = newKey;
+      process.env.AIRMIC_AI_KEY = newKey;
       try {
         let envContent = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, 'utf8') : '';
-        if (envContent.includes('VOICEBRIDGE_AI_KEY')) {
-          envContent = envContent.replace(/^VOICEBRIDGE_AI_KEY=.*$/m, `VOICEBRIDGE_AI_KEY=${newKey}`);
+        if (envContent.includes('AIRMIC_AI_KEY')) {
+          envContent = envContent.replace(/^AIRMIC_AI_KEY=.*$/m, `AIRMIC_AI_KEY=${newKey}`);
         } else {
-          envContent += `${envContent && !envContent.endsWith('\n') ? '\n' : ''}VOICEBRIDGE_AI_KEY=${newKey}\n`;
+          envContent += `${envContent && !envContent.endsWith('\n') ? '\n' : ''}AIRMIC_AI_KEY=${newKey}\n`;
         }
         fs.writeFileSync(ENV_PATH, envContent);
       } catch (e) { ctx.logFn(`Failed to save .env: ${e.message}`, 'warn'); }

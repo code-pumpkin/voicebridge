@@ -26,7 +26,7 @@ function loadEnv() {
   } catch {}
 }
 
-function getAiApiKey() { return (process.env.VOICEBRIDGE_AI_KEY || '').slice(0, 200); }
+function getAiApiKey() { return (process.env.AIRMIC_AI_KEY || process.env.VOICEBRIDGE_AI_KEY || '').slice(0, 200); }
 
 // ─── Config persistence ──────────────────────────────────────────────────────
 
@@ -129,12 +129,12 @@ function initConfig() {
 
   // Migrate: if aiApiKey exists in config.json, move it to .env
   if (config.aiApiKey && typeof config.aiApiKey === 'string' && config.aiApiKey.trim()) {
-    const envLine = `VOICEBRIDGE_AI_KEY=${config.aiApiKey.trim()}\n`;
+    const envLine = `AIRMIC_AI_KEY=${config.aiApiKey.trim()}\n`;
     try {
       const existing = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, 'utf8') : '';
-      if (!existing.includes('VOICEBRIDGE_AI_KEY')) fs.writeFileSync(ENV_PATH, existing + envLine);
+      if (!existing.includes('AIRMIC_AI_KEY')) fs.writeFileSync(ENV_PATH, existing + envLine);
     } catch {}
-    if (!process.env.VOICEBRIDGE_AI_KEY) process.env.VOICEBRIDGE_AI_KEY = config.aiApiKey.trim();
+    if (!process.env.AIRMIC_AI_KEY) process.env.AIRMIC_AI_KEY = config.aiApiKey.trim();
     delete config.aiApiKey;
     saveConfig(config);
   }

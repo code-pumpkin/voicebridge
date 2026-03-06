@@ -262,7 +262,7 @@ function startApp(headless) {
     }
 
     if (!getAiApiKey()) {
-      if (headless) tui.logPhrase('Tip: set VOICEBRIDGE_AI_KEY in .env to enable AI summarize', 'info');
+      if (headless) tui.logPhrase('Tip: set AIRMIC_AI_KEY in .env to enable AI summarize', 'info');
       else tui.logPhrase('Tip: Ctrl+A to configure AI summarize', 'info');
     }
 

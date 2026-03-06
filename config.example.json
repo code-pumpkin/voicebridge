@@ -9,7 +9,7 @@
   "relaySecret": "",
   "relayRejectUnauthorized": true,
   "relayServers": [
-    { "name": "VoiceBridge Cloud", "url": "wss://voicebridge.returnfeed.com:4001", "secret": "" }
+    { "name": "AirMic Cloud", "url": "wss://amrelay1.returnfeed.com:4001", "secret": "" }
   ],
   "aiEnabled": false,
   "aiProvider": "openai",

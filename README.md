@@ -148,7 +148,7 @@ Supports OpenAI, Anthropic, and Google AI.
 ```bash
 cp .env.example .env
 # Edit .env and add your key:
-# VOICEBRIDGE_AI_KEY=sk-your-key-here
+# AIRMIC_AI_KEY=sk-your-key-here
 ```
 
 Or configure interactively: `Ctrl+A` in the TUI.
@@ -242,7 +242,7 @@ API keys are stored in `.env` (not config.json). See `.env.example`.
 
 | Variable | Description |
 |----------|-------------|
-| `VOICEBRIDGE_AI_KEY` | AI provider API key |
+| `AIRMIC_AI_KEY` | AI provider API key |
 
 Set these in `.env` or export them in your shell.
 
