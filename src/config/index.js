@@ -72,7 +72,7 @@ const DEFAULT_CONFIG = {
   relaySecret: '',
   relayRejectUnauthorized: true,
   relayServers: [
-    { name: 'VoiceBridge Cloud', url: 'wss://vbrelay1.returnfeed.com:4001', secret: '' },
+    { name: 'AirMic Cloud', url: 'wss://amrelay1.returnfeed.com:4001', secret: '' },
   ],
   aiEnabled:   false,
   aiProvider:  'openai',

@@ -430,7 +430,7 @@ function showThemePicker(ctx) {
 function showHelp(ctx) {
   const { blessed, screen, T } = ctx;
   const helpContent = [
-    `{bold}{${T.primary}-fg}VoiceBridge — Keybinds & Commands{/${T.primary}-fg}{/bold}`,
+    `{bold}{${T.primary}-fg}AirMic — Keybinds & Commands{/${T.primary}-fg}{/bold}`,
     ``,
     `{${T.cyan}-fg}Keybinds{/${T.cyan}-fg}`,
     `  {${T.textMuted}-fg}Ctrl+K{/${T.textMuted}-fg}    Command palette`,
@@ -453,7 +453,7 @@ function showHelp(ctx) {
     `  {${T.textMuted}-fg}/theme{/${T.textMuted}-fg}       Switch theme`,
     `  {${T.textMuted}-fg}/clear{/${T.textMuted}-fg}       Clear log`,
     `  {${T.textMuted}-fg}/help{/${T.textMuted}-fg}        This help`,
-    `  {${T.textMuted}-fg}/quit{/${T.textMuted}-fg}        Exit VoiceBridge`,
+    `  {${T.textMuted}-fg}/quit{/${T.textMuted}-fg}        Exit AirMic`,
     ``,
     `{${T.textDim}-fg}Press Esc to close{/${T.textDim}-fg}`,
   ];

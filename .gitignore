@@ -15,6 +15,6 @@ tsconfig.json
 awsDeployment.md
 abc
 user/
-.voicebridge.sock
-.voicebridge.pid
-voicebridge.log
+.airmic.sock
+.airmic.pid
+airmic.log

@@ -21,9 +21,9 @@ const args = process.argv.slice(2);
 const command = args[0] || '';
 
 // IPC socket path for daemon communication
-const IPC_PATH = path.join(ROOT, '.voicebridge.sock');
-const PID_PATH = path.join(ROOT, '.voicebridge.pid');
-const LOG_PATH = path.join(ROOT, 'voicebridge.log');
+const IPC_PATH = path.join(ROOT, '.airmic.sock');
+const PID_PATH = path.join(ROOT, '.airmic.pid');
+const LOG_PATH = path.join(ROOT, 'airmic.log');
 
 // ─── Subcommand routing ──────────────────────────────────────────────────────
 
@@ -31,27 +31,27 @@ if (command === 'headless') {
   const action = args[1];
   if (action === 'on')  return startDaemon();
   if (action === 'off') return stopDaemon();
-  console.log('Usage: voicebridge headless on|off');
+  console.log('Usage: airmic headless on|off');
   process.exit(1);
 }
 
 if (command === 'status') return showStatus();
 if (command === 'approve') {
   const pin = args[1];
-  if (!pin) { console.log('Usage: voicebridge approve <PIN>'); process.exit(1); }
+  if (!pin) { console.log('Usage: airmic approve <PIN>'); process.exit(1); }
   return approvePin(pin);
 }
 
 if (command === 'help' || command === '--help' || command === '-h') {
   console.log(`
-  VoiceBridge — Turn your phone into a wireless mic
+  AirMic — Turn your phone into a wireless mic
 
   Usage:
-    voicebridge                  Launch TUI (interactive)
-    voicebridge headless on      Start as background daemon
-    voicebridge headless off     Stop the daemon
-    voicebridge status           Show daemon status
-    voicebridge approve <PIN>    Approve a new device by PIN
+    airmic                  Launch TUI (interactive)
+    airmic headless on      Start as background daemon
+    airmic headless off     Stop the daemon
+    airmic status           Show daemon status
+    airmic approve <PIN>    Approve a new device by PIN
 
   Options:
     --help, -h                   Show this help
@@ -217,7 +217,7 @@ function startApp(headless) {
       { name: 'sessions',   desc: 'Manage device sessions', fn: () => dialogs.showSessionManager(dialogCtx) },
       { name: 'theme',      desc: 'Switch theme',           fn: () => dialogs.showThemePicker(dialogCtx) },
       { name: 'help',       desc: 'Show keybinds & commands', fn: () => dialogs.showHelp(dialogCtx) },
-      { name: 'quit',       desc: 'Exit VoiceBridge',       fn: () => shutdown() },
+      { name: 'quit',       desc: 'Exit AirMic',       fn: () => shutdown() },
     ];
 
     tui.setupInputBar(slashCommands);
@@ -352,7 +352,7 @@ function startDaemon() {
   // Check if already running
   if (fs.existsSync(PID_PATH)) {
     const pid = parseInt(fs.readFileSync(PID_PATH, 'utf8'));
-    try { process.kill(pid, 0); console.log(`VoiceBridge is already running (PID ${pid})`); process.exit(1); }
+    try { process.kill(pid, 0); console.log(`AirMic is already running (PID ${pid})`); process.exit(1); }
     catch {} // process not running, stale PID file
   }
 
@@ -366,22 +366,22 @@ function startDaemon() {
   });
 
   child.unref();
-  console.log(`VoiceBridge daemon started (PID ${child.pid})`);
+  console.log(`AirMic daemon started (PID ${child.pid})`);
   console.log(`  Log: ${LOG_PATH}`);
-  console.log(`  Stop: voicebridge headless off`);
-  console.log(`  Status: voicebridge status`);
+  console.log(`  Stop: airmic headless off`);
+  console.log(`  Status: airmic status`);
   process.exit(0);
 }
 
 function stopDaemon() {
   if (!fs.existsSync(PID_PATH)) {
-    console.log('VoiceBridge is not running');
+    console.log('AirMic is not running');
     process.exit(1);
   }
   const pid = parseInt(fs.readFileSync(PID_PATH, 'utf8'));
   try {
     process.kill(pid, 'SIGTERM');
-    console.log(`VoiceBridge stopped (PID ${pid})`);
+    console.log(`AirMic stopped (PID ${pid})`);
     try { fs.unlinkSync(PID_PATH); } catch {}
     try { fs.unlinkSync(IPC_PATH); } catch {}
   } catch {
@@ -394,7 +394,7 @@ function stopDaemon() {
 
 function showStatus() {
   if (!fs.existsSync(IPC_PATH)) {
-    console.log('VoiceBridge is not running');
+    console.log('AirMic is not running');
     process.exit(1);
   }
 
@@ -410,7 +410,7 @@ function showStatus() {
     const resp = JSON.parse(buf.split('\n')[0]);
     conn.destroy();
 
-    console.log(`VoiceBridge — running (PID ${resp.pid})`);
+    console.log(`AirMic — running (PID ${resp.pid})`);
     console.log(`  Devices:  ${resp.connectedCount}`);
     console.log(`  Paused:   ${resp.paused ? 'yes' : 'no'}`);
     console.log(`  Phrases:  ${resp.totalPhrases}`);
@@ -418,20 +418,20 @@ function showStatus() {
     console.log(`  Relay:    ${resp.relayUrl || 'disabled'} (${resp.relayStatus})`);
     if (resp.pendingPins.length > 0) {
       console.log(`  Pending PINs: ${resp.pendingPins.join(', ')}`);
-      console.log(`  Run: voicebridge approve <PIN>`);
+      console.log(`  Run: airmic approve <PIN>`);
     }
     process.exit(0);
   });
 
   conn.on('error', () => {
-    console.log('VoiceBridge is not running (stale socket)');
+    console.log('AirMic is not running (stale socket)');
     process.exit(1);
   });
 }
 
 function approvePin(pin) {
   if (!fs.existsSync(IPC_PATH)) {
-    console.log('VoiceBridge is not running');
+    console.log('AirMic is not running');
     process.exit(1);
   }
 
@@ -451,7 +451,7 @@ function approvePin(pin) {
   });
 
   conn.on('error', () => {
-    console.log('VoiceBridge is not running');
+    console.log('AirMic is not running');
     process.exit(1);
   });
 }

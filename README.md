@@ -1,4 +1,4 @@
-# VoiceBridge
+# AirMic
 
 Turn your phone into a wireless microphone that types speech directly into your desktop. Your phone handles speech recognition, and the text is typed into whatever window is focused — no drivers, no Bluetooth, no pairing headaches.
 
@@ -8,7 +8,7 @@ Phone (browser) → WebSocket → Desktop (types into focused window)
 
 ## How it works
 
-1. Start VoiceBridge on your desktop — a TUI appears with a QR code
+1. Start AirMic on your desktop — a TUI appears with a QR code
 2. Scan the QR code with your phone's camera
 3. Tap the mic button and start talking
 4. Text appears in your focused desktop window in real-time
@@ -25,7 +25,7 @@ Works over your local WiFi network, or over the internet via a relay server.
 
 The phone UI runs in any modern browser (Chrome, Safari, Edge). The relay server is pure Node.js and runs anywhere.
 
-The desktop agent currently uses `xdotool` for keystroke injection, which is Linux/X11 native. On macOS and Windows, you can run VoiceBridge in **clipboard mode** (`clipboardMode: true` in config.json) — speech text is copied to your clipboard and pasted into the focused window. Full native keystroke support for macOS (AppleScript) and Windows (PowerShell/SendKeys) is planned.
+The desktop agent currently uses `xdotool` for keystroke injection, which is Linux/X11 native. On macOS and Windows, you can run AirMic in **clipboard mode** (`clipboardMode: true` in config.json) — speech text is copied to your clipboard and pasted into the focused window. Full native keystroke support for macOS (AppleScript) and Windows (PowerShell/SendKeys) is planned.
 
 ## Requirements
 
@@ -64,8 +64,8 @@ winget install OpenJS.NodeJS.LTS
 
 ```bash
 # Clone the repo
-git clone https://github.com/code-pumpkin/voicebridge.git
-cd voicebridge
+git clone https://github.com/code-pumpkin/airmic.git
+cd airmic
 
 # Install dependencies
 npm install
@@ -73,18 +73,27 @@ npm install
 # Generate a self-signed TLS cert (required — browsers need HTTPS for mic access)
 bash gen-cert.sh
 
-# Start VoiceBridge
+# Start AirMic
 node server.js
 ```
 
 A TUI launches with a QR code. Scan it with your phone, accept the self-signed cert warning once, and you're live.
 
-### Headless mode
+### Headless mode (daemon)
 
-Run without the TUI (useful for scripts or SSH sessions):
+Run as a background daemon (useful for SSH sessions):
 
 ```bash
-node server.js --headless
+airmic headless on       # Start daemon
+airmic headless off      # Stop daemon
+airmic status            # Check status
+airmic approve <PIN>     # Approve new device
+```
+
+Or run inline without the TUI:
+
+```bash
+npx airmic
 ```
 
 ## Phone UI
@@ -109,7 +118,7 @@ The default. Your phone connects directly to your desktop over your local networ
 
 For when your phone isn't on the same network as your desktop (mobile data, different WiFi, etc.). A relay server on a VPS brokers the WebSocket connection.
 
-VoiceBridge Cloud is included as a default relay. To use it, press `Ctrl+K` → Relay Servers → select VoiceBridge Cloud.
+AirMic Cloud is included as a default relay. To use it, press `Ctrl+K` → Relay Servers → select AirMic Cloud.
 
 The phone will automatically try a direct local connection first and fall back to the relay if your desktop isn't reachable locally.
 
@@ -280,10 +289,10 @@ Use Chrome or Safari. Firefox doesn't support the Web Speech API.
 Make sure `xdotool` is installed and you're running X11 (not Wayland). Check that the target window is focused.
 
 **Text not appearing on desktop (macOS/Windows)**
-Make sure `clipboardMode` is set to `true` in `config.json`. VoiceBridge will copy text to your clipboard and paste it into the focused window.
+Make sure `clipboardMode` is set to `true` in `config.json`. AirMic will copy text to your clipboard and paste it into the focused window.
 
 **Android "pyramid" effect (repeated text)**
-This is handled automatically — VoiceBridge uses single-shot recognition mode on Android with auto-restart.
+This is handled automatically — AirMic uses single-shot recognition mode on Android with auto-restart.
 
 **Relay connection fails**
 Check that port 4001 is open on the VPS, the relay secret matches, and the service is running (`systemctl status wireless-mic-relay`).

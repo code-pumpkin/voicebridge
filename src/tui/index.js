@@ -34,7 +34,7 @@ function createTUI(config, opts = {}) {
 
   // ── Full TUI ──
   const blessed = require('blessed');
-  const screen = blessed.screen({ smartCSR: true, title: 'VoiceBridge', fullUnicode: true });
+  const screen = blessed.screen({ smartCSR: true, title: 'AirMic', fullUnicode: true });
 
   // ── Header bar ──
   const titleBar = blessed.box({
@@ -162,7 +162,7 @@ function createTUI(config, opts = {}) {
     stats.push(`{${T.textDim}-fg}${fmtUptime()}{/${T.textDim}-fg}`);
     const right = stats.join(`  {${T.border}-fg}·{/${T.border}-fg}  `) + '  ';
 
-    const parts = [`  {bold}{${T.primary}-fg}VoiceBridge{/${T.primary}-fg}{/bold}`, clientDot];
+    const parts = [`  {bold}{${T.primary}-fg}AirMic{/${T.primary}-fg}{/bold}`, clientDot];
     if (relayDot) parts.push(relayDot);
     if (aiDot) parts.push(aiDot);
     if (pauseDot) parts.push(pauseDot);
@@ -180,7 +180,7 @@ function createTUI(config, opts = {}) {
       const s = states[0];
       modeInfo = `{${T.textDim}-fg}${s.language || config.language} · ${s.pttMode ? 'Hold' : 'Toggle'} · ${s.clipboardMode ? 'Clipboard' : 'Direct'}{/${T.textDim}-fg}`;
     }
-    const left = modeInfo ? `  ${modeInfo}` : `  {${T.textDim}-fg}VoiceBridge{/${T.textDim}-fg}`;
+    const left = modeInfo ? `  ${modeInfo}` : `  {${T.textDim}-fg}AirMic{/${T.textDim}-fg}`;
     const wordsInfo = appState.totalWords > 0 ? `${appState.totalWords} words  ` : '';
     const right = `{${T.textDim}-fg}${wordsInfo}${fmtUptime()}{/${T.textDim}-fg}  `;
     bottomBar.setContent(`${left}${' '.repeat(Math.max(0, (screen.width || 80) - 50))}${right}`);
@@ -379,7 +379,7 @@ function _headlessLog(text, type = 'info') {
 
 function _headlessQR(displayUrl, mode, localUrl) {
   console.log(`\n╔══════════════════════════════════════════════════╗`);
-  console.log(`║  VoiceBridge — ${mode === 'relay' ? 'RELAY' : 'LOCAL'} mode`);
+  console.log(`║  AirMic — ${mode === 'relay' ? 'RELAY' : 'LOCAL'} mode`);
   console.log(`║  Phone URL: ${displayUrl}`);
   if (mode === 'relay') console.log(`║  Local:     ${localUrl}`);
   console.log(`╚══════════════════════════════════════════════════╝\n`);
