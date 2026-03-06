@@ -32,7 +32,7 @@ function showCommandPalette(ctx) {
       item: { fg: T.textMuted, bg: T.bgPanel },
       selected: { fg: T.bg, bg: T.primary, bold: true },
     },
-    keys: true, vi: true, mouse: true,
+    keys: true, vi: true, mouse: false,
     items: items.map(i => `  ${i.label}`),
   });
 
@@ -134,7 +134,7 @@ function showRelayServers(ctx) {
   const sList = blessed.list({
     parent: form, top: 3, left: 0, width: '100%-4',
     height: Math.min(config.relayServers.length + 5, 12),
-    keys: true, vi: true, mouse: true, tags: true,
+    keys: true, vi: true, mouse: false, tags: true,
     style: {
       bg: T.bgPanel,
       item: { fg: T.textMuted, bg: T.bgPanel },
@@ -212,7 +212,7 @@ function _removeRelay(ctx) {
     border: { type: 'line' },
     style: { border: { fg: T.red }, bg: T.bgPanel, item: { fg: T.textMuted, bg: T.bgPanel }, selected: { bg: '#3a1a1a', fg: T.text } },
     label: { text: ` Remove `, side: 'left', style: { fg: T.red } },
-    keys: true, vi: true, mouse: true, tags: true,
+    keys: true, vi: true, mouse: false, tags: true,
     items: config.relayServers.map(s => `  ${s.name || s.url.slice(0, 45)}`),
   });
 
@@ -373,7 +373,7 @@ function showSessionManager(ctx) {
   const sList = blessed.list({
     parent: form, top: 3, left: 0, width: '100%-4',
     height: Math.min(tokens.length + 1, 12),
-    keys: true, vi: true, mouse: true, tags: true,
+    keys: true, vi: true, mouse: false, tags: true,
     style: { bg: T.bgPanel, item: { fg: T.textMuted, bg: T.bgPanel }, selected: { fg: T.text, bg: T.bgElement, bold: true } },
     items,
   });
@@ -404,7 +404,7 @@ function showThemePicker(ctx) {
     border: { type: 'line' },
     style: { border: { fg: T.border }, bg: T.bgPanel, item: { fg: T.textMuted, bg: T.bgPanel }, selected: { fg: T.bg, bg: T.primary, bold: true } },
     label: { text: ' Theme ', side: 'left', style: { fg: T.primary } },
-    keys: true, vi: true, mouse: true, tags: true,
+    keys: true, vi: true, mouse: false, tags: true,
     items: names.map(n => {
       const active = n === (config.theme || 'opencode') ? ` {${T.green}-fg}●{/${T.green}-fg}` : '';
       return `  ${n}${active}`;
@@ -465,7 +465,7 @@ function showHelp(ctx) {
     style: { border: { fg: T.border }, bg: T.bgPanel },
     tags: true, padding: { left: 2, right: 2 },
     content: helpContent.join('\n'),
-    scrollable: true, keys: true, mouse: true,
+    scrollable: true, keys: true, mouse: false,
   });
 
   popup.focus();

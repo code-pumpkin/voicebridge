@@ -57,7 +57,7 @@ function createTUI(config, opts = {}) {
 
   const logBox = blessed.log({
     parent: mainPanel, top: 0, left: 2, width: '100%-4', height: '100%-4',
-    tags: true, scrollable: true, alwaysScroll: true, mouse: true,
+    tags: true, scrollable: true, alwaysScroll: true, mouse: false,
     scrollbar: { ch: '│', track: { bg: T.bg }, style: { fg: T.border } },
     style: { fg: T.text, bg: T.bg },
   });
@@ -334,7 +334,7 @@ function createTUI(config, opts = {}) {
           width: 36, height: Math.min(matches.length + 2, 12),
           border: { type: 'line' },
           style: { border: { fg: T.border }, bg: T.bgPanel, item: { fg: T.textMuted, bg: T.bgPanel }, selected: { fg: T.text, bg: T.bgElement, bold: true } },
-          keys: true, vi: true, mouse: true, tags: true,
+          keys: true, vi: true, mouse: false, tags: true,
           items: matches.map(c => `  /${c.name}  {${T.textDim}-fg}${c.desc}{/${T.textDim}-fg}`),
         });
         completionBox.focus();
