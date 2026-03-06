@@ -3,8 +3,24 @@
 const fs   = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const os   = require('os');
 
-const ROOT = path.join(__dirname, '..', '..');
+const PKG_ROOT = path.join(__dirname, '..', '..');
+const DATA_DIR = path.join(os.homedir(), '.airmic');
+
+// Ensure ~/.airmic/ exists
+try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch {}
+
+// Migrate old config files from package dir to ~/.airmic/ if they exist
+for (const f of ['config.json', 'sessions.json', '.env']) {
+  const oldPath = path.join(PKG_ROOT, f);
+  const newPath = path.join(DATA_DIR, f);
+  if (fs.existsSync(oldPath) && !fs.existsSync(newPath)) {
+    try { fs.copyFileSync(oldPath, newPath); } catch {}
+  }
+}
+
+const ROOT = DATA_DIR;
 const CONFIG_PATH   = path.join(ROOT, 'config.json');
 const SESSIONS_PATH = path.join(ROOT, 'sessions.json');
 const ENV_PATH      = path.join(ROOT, '.env');

@@ -20,10 +20,12 @@ const { getAiApiKey } = require('./src/ai');
 const args = process.argv.slice(2);
 const command = args[0] || '';
 
-// IPC socket path for daemon communication
-const IPC_PATH = path.join(ROOT, '.airmic.sock');
-const PID_PATH = path.join(ROOT, '.airmic.pid');
-const LOG_PATH = path.join(ROOT, 'airmic.log');
+// IPC socket path for daemon communication — use stable ~/.airmic/ dir
+const AIRMIC_DIR = path.join(require('os').homedir(), '.airmic');
+try { fs.mkdirSync(AIRMIC_DIR, { recursive: true }); } catch {}
+const IPC_PATH = path.join(AIRMIC_DIR, '.airmic.sock');
+const PID_PATH = path.join(AIRMIC_DIR, '.airmic.pid');
+const LOG_PATH = path.join(AIRMIC_DIR, 'airmic.log');
 
 // ─── Subcommand routing ──────────────────────────────────────────────────────
 
