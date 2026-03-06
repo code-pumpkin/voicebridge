@@ -22,7 +22,7 @@ function resetSdkCache() {
   _openai = null; _anthropic = null; _google = null;
 }
 
-const AI_DEFAULTS = { openai: 'gpt-4o-mini', anthropic: 'claude-3-5-haiku-latest', google: 'gemini-1.5-flash' };
+const AI_DEFAULTS = { openai: 'gpt-4o-mini', anthropic: 'claude-3-5-haiku-latest', google: 'gemini-2.5-flash' };
 
 async function aiSummarize(text, config, logFn) {
   if (!config.aiEnabled || !getAiApiKey()) return text;
