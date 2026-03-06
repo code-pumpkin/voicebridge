@@ -696,7 +696,7 @@ function checkRelayHealth(relayUrl, secret, timeout = 3000) {
       const url = new URL(healthUrl);
       const opts = {
         hostname: url.hostname, port: url.port || 443, path: url.pathname,
-        method: 'GET', rejectUnauthorized: false, timeout,
+        method: 'GET', rejectUnauthorized: true, timeout,
         headers: secret ? { Authorization: `Bearer ${secret}` } : {},
       };
       const req = https.request(opts, (res) => {
@@ -837,11 +837,11 @@ function showRelayServers() {
       if (name === null) return;
       // Step 2: URL
       promptInput('Relay URL:', 'wss://', (url) => {
-        if (url === null || !url || url === 'wss://' || !/^wss?:\/\/.+/.test(url)) return;
+        if (url === null || !url || url === 'wss://' || !/^wss:\/\/.+/.test(url)) return;
         // Step 3: Secret
         promptInput('Secret (blank if none):', '', (secret) => {
           if (secret === null) secret = '';
-          const entry = { name: name || url.replace(/^wss?:\/\//, '').slice(0, 40), url, secret };
+          const entry = { name: name || url.replace(/^wss:\/\//, '').slice(0, 40), url, secret };
           if (!config.relayServers.some(s => s.url === url)) config.relayServers.push(entry);
           config.relayUrl = url;
           config.relaySecret = secret;
@@ -1475,7 +1475,7 @@ const virtualClients = new Map(); // clientId → VirtualWS
 
 function connectRelay() {
   if (!config.relayUrl) { relayStatus = 'disabled'; updateStatus(); return; }
-  if (!/^wss?:\/\/.+/.test(config.relayUrl)) {
+  if (!/^wss:\/\/.+/.test(config.relayUrl)) {
     logPhrase('Relay URL must start with wss:// — skipping', 'warn');
     relayStatus = 'error';
     updateStatus();
@@ -1841,11 +1841,11 @@ server.listen(config.port, '0.0.0.0', () => {
       if (name === null) { showRelaySetup(keepLocal, onDone); return; }
       // Step 2: URL
       promptInput('Relay URL:', 'wss://', (url) => {
-        if (url === null || !url || url === 'wss://' || !/^wss?:\/\/.+/.test(url)) { showRelaySetup(keepLocal, onDone); return; }
+        if (url === null || !url || url === 'wss://' || !/^wss:\/\/.+/.test(url)) { showRelaySetup(keepLocal, onDone); return; }
         // Step 3: Secret
         promptInput('Secret (blank if none):', '', (secret) => {
           if (secret === null) secret = '';
-          const entry = { name: name || url.replace(/^wss?:\/\//, '').slice(0, 40), url, secret };
+          const entry = { name: name || url.replace(/^wss:\/\//, '').slice(0, 40), url, secret };
           if (!Array.isArray(config.relayServers)) config.relayServers = [];
           if (!config.relayServers.some(s => s.url === url)) config.relayServers.push(entry);
           config.relayUrl = url;
