@@ -117,10 +117,7 @@ const DEFAULT_CONFIG = {
   relaySecret: '',
   relayRejectUnauthorized: true,
   relayServers: [
-    { name: 'VoiceBridge Cloud 1', url: 'wss://vbrelay1.returnfeed.com:4001', secret: '' },
-    { name: 'VoiceBridge Cloud 2', url: 'wss://vbrelay2.returnfeed.com:4001', secret: '' },
-    { name: 'VoiceBridge Cloud 3', url: 'wss://vbrelay3.returnfeed.com:4001', secret: '' },
-    { name: 'VoiceBridge Cloud 4', url: 'wss://vbrelay4.returnfeed.com:4001', secret: '' },
+    { name: 'VoiceBridge Cloud', url: 'wss://vbrelay1.returnfeed.com:4001', secret: '' },
   ],
   aiEnabled:   false,
   aiProvider:  'openai',   // 'openai' | 'anthropic' | 'google'
