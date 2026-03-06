@@ -537,6 +537,7 @@ function startDaemon(mode) {
   // Wait for IPC to come up, then print URL + QR
   let attempts = 0;
   const maxAttempts = 30;
+  const wantRelay = mode === 'relay' || (!mode && true); // if no mode, still wait a bit for relay
   const poll = setInterval(() => {
     attempts++;
     if (attempts > maxAttempts) {
@@ -552,18 +553,27 @@ function startDaemon(mode) {
     conn.on('data', (data) => {
       buf += data.toString();
       if (!buf.includes('\n')) return;
-      clearInterval(poll);
       try {
         const resp = JSON.parse(buf.split('\n')[0]);
         conn.destroy();
-        if (resp.url) {
-          console.log(`\n  Phone URL: ${resp.url}`);
-          if (resp.relayUrl && resp.relayStatus === 'connected' && resp.relayDisplayUrl) {
-            console.log(`  Relay URL: ${resp.relayDisplayUrl}`);
+
+        // If relay mode, keep polling until relay is connected (or timeout)
+        if (mode === 'relay' && resp.relayUrl && resp.relayStatus !== 'connected') {
+          return; // keep polling
+        }
+
+        clearInterval(poll);
+        const displayUrl = resp.relayDisplayUrl || resp.url;
+        if (displayUrl) {
+          if (resp.relayDisplayUrl) {
+            console.log(`\n  Relay URL: ${resp.relayDisplayUrl}`);
           }
-          // Print QR code
+          if (resp.url) {
+            console.log(`  Local URL: ${resp.url}`);
+          }
+          // Print QR code for the best URL
           const QRCode = require('qrcode');
-          QRCode.toString(resp.relayDisplayUrl || resp.url, { type: 'terminal', small: true }, (err, qr) => {
+          QRCode.toString(displayUrl, { type: 'terminal', small: true }, (err, qr) => {
             if (!err && qr) console.log('\n' + qr);
             process.exit(0);
           });
