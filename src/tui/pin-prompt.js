@@ -18,8 +18,31 @@ function createPinSystem(ctx) {
   const pinQueue = [];
   let pinPromptActive = false;
 
+  /** Check if we're in daemon mode (stdin not usable). */
+  function isDaemon() {
+    return !process.stdin.readable || process.stdin.destroyed || !process.stdin.isTTY;
+  }
+
   function processPinQueue() {
     if (pinPromptActive || !pinQueue.length) return;
+
+    // In daemon mode, don't shift — leave PINs in queue for IPC approval
+    if (ctx.headless && isDaemon()) {
+      // Log any new PINs that haven't been announced yet
+      for (const entry of pinQueue) {
+        if (!entry.announced && entry.ws.readyState === WebSocket.OPEN) {
+          entry.announced = true;
+          ctx.logFn(`New device — PIN: ${entry.pin}  (run: airmic approve ${entry.pin})`, 'auth');
+        }
+      }
+      // Clean up dead connections
+      for (let i = pinQueue.length - 1; i >= 0; i--) {
+        if (pinQueue[i].ws.readyState !== WebSocket.OPEN) pinQueue.splice(i, 1);
+      }
+      return;
+    }
+
+    // Interactive mode (TUI or headless with stdin) — shift and prompt
     const { pin, ws } = pinQueue.shift();
     if (ws.readyState !== WebSocket.OPEN) { processPinQueue(); return; }
     pinPromptActive = true;
@@ -66,60 +89,39 @@ function createPinSystem(ctx) {
     ctx.logFn('Device rejected', 'warn');
   }
 
-  // ── Headless PIN approval — just queue and wait for IPC `airmic approve` ──
+  // ── Headless PIN approval (interactive stdin only — daemon handled in processPinQueue) ──
   function _headlessPrompt(pin, ws) {
-    // In daemon mode stdin is /dev/null — don't try readline.
-    // Just log the PIN and leave it in the queue for IPC approval.
-    // The registration timeout in handler.js gives the user time to approve.
-    ctx.logFn(`New device — PIN: ${pin}  (run: airmic approve ${pin})`, 'auth');
-
-    // If stdin is readable (interactive headless), offer Y/N prompt
-    if (process.stdin.readable && !process.stdin.destroyed) {
-      let done = false;
-      function cleanup() {
-        if (done) return;
-        done = true;
-        pinPromptActive = false;
-        processPinQueue();
-      }
-
-      console.log(`\n──────────────────────────────────`);
-      console.log(`  New device — PIN: ${pin}`);
-      console.log(`  Type Y to approve, N to reject`);
-      console.log(`──────────────────────────────────`);
-
-      ws.once('close', () => cleanup());
-
-      try {
-        const rl = require('readline').createInterface({ input: process.stdin, output: process.stdout });
-        rl.question('> ', (answer) => {
-          rl.close();
-          if (done) return;
-          const a = (answer || '').trim().toLowerCase();
-          if (a === 'y' || a === 'yes') {
-            approveDevice(ws, pin);
-          } else {
-            rejectDevice(ws);
-          }
-          cleanup();
-        });
-        rl.on('close', () => {
-          // stdin closed (daemon mode) — don't reject, just leave in queue
-          if (!done) {
-            done = true;
-            pinPromptActive = false;
-            processPinQueue();
-          }
-        });
-      } catch {
-        // readline failed — leave in queue for IPC
-        pinPromptActive = false;
-        processPinQueue();
-      }
-    } else {
-      // Daemon mode — PIN stays in queue, waiting for IPC approve
+    let done = false;
+    function cleanup() {
+      if (done) return;
+      done = true;
       pinPromptActive = false;
       processPinQueue();
+    }
+
+    console.log(`\n──────────────────────────────────`);
+    console.log(`  New device — PIN: ${pin}`);
+    console.log(`  Type Y to approve, N to reject`);
+    console.log(`──────────────────────────────────`);
+
+    ws.once('close', () => cleanup());
+
+    try {
+      const rl = require('readline').createInterface({ input: process.stdin, output: process.stdout });
+      rl.question('> ', (answer) => {
+        rl.close();
+        if (done) return;
+        const a = (answer || '').trim().toLowerCase();
+        if (a === 'y' || a === 'yes') {
+          approveDevice(ws, pin);
+        } else {
+          rejectDevice(ws);
+        }
+        cleanup();
+      });
+      rl.on('close', () => { if (!done) cleanup(); });
+    } catch {
+      cleanup();
     }
   }
 
