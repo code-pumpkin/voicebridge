@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' wss: https:; base-uri 'self'">
-  <title>VoiceBridge</title>
+  <title>AirMic</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -23,14 +23,14 @@
       --blue: #5c9cf5;
       --purple: #b48ead;
       --radius: 16px;
-      --max-w: min(400px, 100%);
+      --max-w: min(520px, 100%);
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
       background: var(--bg); color: var(--text);
       height: 100dvh; overflow: hidden;
       display: flex; flex-direction: column; align-items: center;
-      padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 16px);
+      padding: env(safe-area-inset-top, 12px) 12px env(safe-area-inset-bottom, 12px);
     }
 
     .screen { display: none; flex-direction: column; align-items: center; width: 100%; flex: 1; min-height: 0; }
@@ -96,13 +96,13 @@
     }
 
     /* ── main ── */
-    #screen-main { gap: 0; }
+    #screen-main { gap: 0; height: 100%; }
 
     /* header */
     .app-header {
       width: 100%; max-width: var(--max-w);
       display: flex; align-items: center; justify-content: space-between;
-      padding: 10px 0 14px; flex-shrink: 0;
+      padding: 6px 4px 8px; flex-shrink: 0;
     }
     .app-brand {
       font-size: 16px; font-weight: 600; color: var(--accent);
@@ -120,20 +120,20 @@
     .conn-badge.err .dot { background: var(--red); }
     .conn-badge.wait .dot { background: var(--yellow); }
 
-    /* mic area — the hero */
+    /* mic area — compact hero */
     .mic-area {
       width: 100%; max-width: var(--max-w);
-      display: flex; flex-direction: column; align-items: center;
-      padding: 24px 0 20px; flex-shrink: 0;
+      display: flex; align-items: center; gap: 16px;
+      padding: 12px 4px; flex-shrink: 0;
     }
     #mic-btn {
-      width: clamp(100px, 28vmin, 140px); height: clamp(100px, 28vmin, 140px);
+      width: 72px; height: 72px; min-width: 72px;
       border-radius: 50%; border: 2px solid var(--border);
-      background: var(--surface); color: var(--text2); font-size: clamp(32px, 8vmin, 48px);
+      background: var(--surface); color: var(--text2); font-size: 28px;
       cursor: pointer; transition: all 0.2s;
       display: flex; align-items: center; justify-content: center;
       user-select: none; -webkit-user-select: none;
-      box-shadow: 0 2px 20px rgba(0,0,0,0.3);
+      box-shadow: 0 2px 16px rgba(0,0,0,0.3);
     }
     #mic-btn:active { transform: scale(0.94); }
     #mic-btn.listening {
@@ -143,39 +143,37 @@
     #mic-btn.paused-state { opacity: 0.25; pointer-events: none; }
     @keyframes mic-pulse {
       0%   { box-shadow: 0 0 0 0 rgba(224,108,117,0.25); }
-      70%  { box-shadow: 0 0 0 18px rgba(224,108,117,0); }
+      70%  { box-shadow: 0 0 0 14px rgba(224,108,117,0); }
       100% { box-shadow: 0 0 0 0 rgba(224,108,117,0); }
     }
+    .mic-info { flex: 1; min-width: 0; }
     #mic-status {
-      font-size: 13px; color: var(--text3); text-align: center;
-      margin-top: 12px; min-height: 18px;
+      font-size: 13px; color: var(--text3); min-height: 18px;
     }
 
     /* transcript */
     #transcript {
-      width: 100%; max-width: var(--max-w);
-      min-height: 52px; max-height: 100px;
+      min-height: 40px; max-height: 80px;
       background: var(--surface); border-left: 3px solid var(--accent);
-      border-radius: 0 12px 12px 0; padding: 12px 16px;
-      font-size: 15px; color: var(--text); line-height: 1.5;
-      word-break: break-word; overflow-y: auto; flex-shrink: 0;
+      border-radius: 0 10px 10px 0; padding: 8px 12px;
+      font-size: 14px; color: var(--text); line-height: 1.5;
+      word-break: break-word; overflow-y: auto;
+      margin-top: 6px;
     }
     #transcript .interim { color: var(--text3); font-style: italic; }
 
-    /* controls — pill row below transcript */
+    /* controls — bottom toolbar */
     .controls {
       width: 100%; max-width: var(--max-w);
-      display: flex; gap: 8px; flex-shrink: 0;
-      padding: 12px 0 8px; overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;
+      flex-shrink: 0; padding: 8px 4px;
     }
     .ctrl-btn {
-      flex: 0 0 auto;
-      padding: 10px 18px; border-radius: 24px;
+      padding: 10px 0; border-radius: 12px;
       border: 1px solid var(--border); background: var(--surface); color: var(--text3);
-      font-size: 13px; cursor: pointer; transition: all 0.15s;
+      font-size: 12px; cursor: pointer; transition: all 0.15s;
       white-space: nowrap; font-weight: 500;
-      min-height: 44px; display: flex; align-items: center;
+      min-height: 44px; display: flex; align-items: center; justify-content: center;
     }
     .ctrl-btn:active { transform: scale(0.95); }
     .ctrl-btn.on { background: var(--surface3); border-color: #444; color: var(--text); }
@@ -186,12 +184,12 @@
     /* language select */
     .lang-row {
       width: 100%; max-width: var(--max-w);
-      padding: 4px 0 10px; flex-shrink: 0;
+      padding: 4px 4px 6px; flex-shrink: 0;
     }
     .lang-row select {
       width: 100%;
       background: var(--surface); color: var(--text2); border: 1px solid var(--border);
-      border-radius: 12px; padding: 12px 16px; font-size: 14px;
+      border-radius: 12px; padding: 10px 14px; font-size: 13px;
       -webkit-appearance: none; appearance: none;
       min-height: 44px;
     }
@@ -202,7 +200,7 @@
       font-size: 11px; color: var(--text3); text-transform: uppercase;
       letter-spacing: 0.08em; font-weight: 600;
       display: flex; justify-content: space-between; align-items: center;
-      flex-shrink: 0; padding: 8px 0 6px;
+      flex-shrink: 0; padding: 6px 4px 4px;
     }
     .hist-header button {
       background: none; border: none; color: var(--text3);
@@ -244,7 +242,7 @@
     <div class="connect-card">
       <div class="connect-spinner" id="connect-spinner"></div>
       <h2>Connecting</h2>
-      <div class="subtitle">VoiceBridge</div>
+      <div class="subtitle">AirMic</div>
       <div id="connect-status">Establishing connection...</div>
       <button id="connect-retry" onclick="location.reload()">Retry</button>
     </div>
@@ -272,7 +270,7 @@
   <!-- Main app screen -->
   <div class="screen" id="screen-main">
     <div class="app-header">
-      <span class="app-brand">VoiceBridge</span>
+      <span class="app-brand">AirMic</span>
       <div class="conn-badge wait" id="conn-badge">
         <span class="dot"></span>
         <span id="conn-label">connecting</span>
@@ -281,10 +279,11 @@
 
     <div class="mic-area">
       <button id="mic-btn">&#x1f3a4;</button>
-      <div id="mic-status">Tap to start</div>
+      <div class="mic-info">
+        <div id="mic-status">Tap to start</div>
+        <div id="transcript"><span class="interim">Transcript appears here</span></div>
+      </div>
     </div>
-
-    <div id="transcript"><span class="interim">Transcript appears here</span></div>
 
     <div class="controls">
       <div class="ctrl-btn" id="pause-btn">Pause</div>

@@ -5,6 +5,34 @@ const fs      = require('fs');
 const path    = require('path');
 const express = require('express');
 const WebSocket = require('ws');
+const { execSync } = require('child_process');
+
+/**
+ * Auto-generate self-signed certs if they don't exist.
+ */
+function ensureCerts(rootDir) {
+  const certsDir = path.join(rootDir, 'certs');
+  const keyPath  = path.join(certsDir, 'key.pem');
+  const certPath = path.join(certsDir, 'cert.pem');
+
+  if (fs.existsSync(keyPath) && fs.existsSync(certPath)) return;
+
+  console.log('[airmic] No TLS certs found — generating self-signed certificate...');
+  if (!fs.existsSync(certsDir)) fs.mkdirSync(certsDir, { recursive: true });
+
+  try {
+    execSync(
+      `openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" ` +
+      `-days 365 -nodes -subj "/CN=airmic-local"`,
+      { stdio: 'pipe' }
+    );
+    console.log('[airmic] Self-signed cert created in certs/');
+  } catch (err) {
+    console.error('[airmic] ERROR: Could not generate certs. Install openssl or create certs/key.pem + certs/cert.pem manually.');
+    console.error(err.stderr ? err.stderr.toString().trim() : err.message);
+    process.exit(1);
+  }
+}
 
 /**
  * Create the Express app with all middleware and routes.
@@ -60,6 +88,7 @@ function createServer(config, rootDir) {
   app.get('/{*path}', (req, res) => res.status(403).send('Forbidden'));
 
   // HTTPS server
+  ensureCerts(rootDir);
   const server = https.createServer({
     key:  fs.readFileSync(path.join(rootDir, 'certs/key.pem')),
     cert: fs.readFileSync(path.join(rootDir, 'certs/cert.pem')),

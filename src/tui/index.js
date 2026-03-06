@@ -33,8 +33,15 @@ function createTUI(config, opts = {}) {
   }
 
   // ── Full TUI ──
+  // blessed doesn't recognize some modern terminals (kitty, alacritty, etc.)
+  // which causes raw escape sequences to leak as visible garbage characters
+  const knownTerms = ['xterm', 'xterm-256color', 'screen', 'screen-256color', 'tmux', 'tmux-256color', 'rxvt', 'linux', 'vt100'];
+  if (process.env.TERM && !knownTerms.some(t => process.env.TERM.startsWith(t))) {
+    process.env.TERM = 'xterm-256color';
+  }
+
   const blessed = require('blessed');
-  const screen = blessed.screen({ smartCSR: true, title: 'AirMic', fullUnicode: true });
+  const screen = blessed.screen({ smartCSR: true, title: 'AirMic', fullUnicode: true, mouse: false });
 
   // ── Header bar ──
   const titleBar = blessed.box({
@@ -222,6 +229,16 @@ function createTUI(config, opts = {}) {
   }
 
   function renderQR(displayUrl, mode, localUrl) {
+    if (mode === 'relay-pending') {
+      qrInfo.setContent(
+        `{${T.yellow}-fg}Waiting for relay connection...{/${T.yellow}-fg}\n` +
+        `{${T.textDim}-fg}QR code will appear once relay is ready{/${T.textDim}-fg}`
+      );
+      qrBox.setContent('');
+      screen.render();
+      return;
+    }
+
     qrInfo.setContent(
       `{${T.textDim}-fg}URL{/${T.textDim}-fg}  {${T.text}-fg}${displayUrl}{/${T.text}-fg}\n` +
       `{${T.textDim}-fg}Mode{/${T.textDim}-fg} {${mode === 'relay' ? T.green : T.primary}-fg}${mode}{/${mode === 'relay' ? T.green : T.primary}-fg}`
@@ -378,6 +395,13 @@ function _headlessLog(text, type = 'info') {
 }
 
 function _headlessQR(displayUrl, mode, localUrl) {
+  if (mode === 'relay-pending') {
+    console.log(`\n╔══════════════════════════════════════════════════╗`);
+    console.log(`║  AirMic — Waiting for relay connection...`);
+    console.log(`║  QR code will appear once relay is ready`);
+    console.log(`╚══════════════════════════════════════════════════╝\n`);
+    return;
+  }
   console.log(`\n╔══════════════════════════════════════════════════╗`);
   console.log(`║  AirMic — ${mode === 'relay' ? 'RELAY' : 'LOCAL'} mode`);
   console.log(`║  Phone URL: ${displayUrl}`);

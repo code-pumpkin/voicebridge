@@ -1,4 +1,4 @@
-// relay.js — runs on a VPS, brokers WSS between desktop host and phone clients
+// relay.js — AirMic relay server, brokers WSS between desktop host and phone clients
 // Desktop connects outbound as 'host', phones connect as 'client'
 // All traffic is encrypted in transit via WSS (TLS) between each hop
 // Note: the relay can see message content — this is transport encryption, not E2E

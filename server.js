@@ -6,7 +6,7 @@ const fs   = require('fs');
 const net  = require('net');
 const { networkInterfaces } = require('os');
 
-const { initConfig, initSessions, saveConfig, saveSessions, pruneSessions, ROOT } = require('./src/config');
+const { initConfig, initSessions, saveConfig, saveSessions, pruneSessions, ROOT, CONFIG_PATH, ENV_PATH, DEFAULT_CONFIG } = require('./src/config');
 const { createServer } = require('./src/connection/http');
 const { createConnectionHandler } = require('./src/connection/handler');
 const { createTUI } = require('./src/tui');
@@ -48,6 +48,7 @@ if (command === 'help' || command === '--help' || command === '-h') {
 
   Usage:
     airmic                  Launch TUI (interactive)
+    airmic setup            Run first-time setup wizard
     airmic headless on      Start as background daemon
     airmic headless off     Stop the daemon
     airmic status           Show daemon status
@@ -59,11 +60,106 @@ if (command === 'help' || command === '--help' || command === '-h') {
   process.exit(0);
 }
 
-// Default: launch TUI (unless internal daemon mode)
-if (command === '--headless-daemon') {
-  startApp(true);
+if (command === 'setup') {
+  runSetup().then(() => process.exit(0));
+} else if (command === '--headless-daemon') {
+  maybeSetup(true).then(() => startApp(true));
 } else {
-  startApp(false);
+  maybeSetup(false).then(() => startApp(false));
+}
+
+// ─── First-run setup wizard ──────────────────────────────────────────────────
+
+function ask(rl, question) {
+  return new Promise(resolve => rl.question(question, answer => resolve(answer.trim())));
+}
+
+async function maybeSetup(headless) {
+  if (fs.existsSync(CONFIG_PATH)) return;
+  if (headless) {
+    // Headless mode can't run interactive setup — use defaults
+    console.log('[airmic] No config.json found — using defaults. Run `airmic setup` to configure.');
+    return;
+  }
+  console.log('\n  Welcome to AirMic! Let\'s get you set up.\n');
+  await runSetup();
+  console.log('');
+}
+
+async function runSetup() {
+  const readline = require('readline');
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+  const existing = fs.existsSync(CONFIG_PATH) ? JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')) : {};
+  const config = { ...DEFAULT_CONFIG, ...existing };
+
+  // ── Connection mode ──
+  console.log('  Connection Mode');
+  console.log('  ───────────────');
+  console.log('  1) Local only — phone connects over your WiFi (no internet needed)');
+  console.log('  2) Relay — phone connects through the AirMic cloud relay (works anywhere)');
+  console.log('  3) Both — local with relay fallback\n');
+
+  const modeAnswer = await ask(rl, '  Choose [1/2/3] (default: 3): ');
+  const mode = ['1', '2', '3'].includes(modeAnswer) ? modeAnswer : '3';
+
+  if (mode === '1') {
+    config.relayUrl = '';
+    config.relaySecret = '';
+  } else {
+    // Use default relay server
+    const defaultRelay = 'wss://amrelay1.returnfeed.com:4001';
+    const relayAnswer = await ask(rl, `  Relay URL (default: ${defaultRelay}): `);
+    config.relayUrl = relayAnswer || defaultRelay;
+    config.relaySecret = '';
+  }
+
+  // ── Port ──
+  const portAnswer = await ask(rl, `\n  Local server port (default: ${config.port}): `);
+  const portNum = parseInt(portAnswer, 10);
+  if (portNum > 0 && portNum < 65536) config.port = portNum;
+
+  // ── AI ──
+  console.log('\n  AI Text Cleanup');
+  console.log('  ───────────────');
+  console.log('  AirMic can clean up your speech using AI before typing it out.');
+  console.log('  Providers: openai, anthropic, google\n');
+
+  const aiAnswer = await ask(rl, '  Enable AI cleanup? [y/N]: ');
+  const wantAi = aiAnswer.toLowerCase().startsWith('y');
+
+  if (wantAi) {
+    config.aiEnabled = true;
+
+    console.log('\n  1) openai');
+    console.log('  2) anthropic');
+    console.log('  3) google\n');
+    const provAnswer = await ask(rl, '  Provider [1/2/3] (default: 1): ');
+    config.aiProvider = provAnswer === '2' ? 'anthropic' : provAnswer === '3' ? 'google' : 'openai';
+
+    const modelAnswer = await ask(rl, `  Model name (leave blank for default): `);
+    config.aiModel = modelAnswer.slice(0, 100);
+
+    const keyAnswer = await ask(rl, '  API key: ');
+    if (keyAnswer) {
+      // Save to .env, not config.json
+      const envLine = `AIRMIC_AI_KEY=${keyAnswer.trim()}\n`;
+      try {
+        const existingEnv = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, 'utf8') : '';
+        const filtered = existingEnv.split('\n').filter(l => !l.startsWith('AIRMIC_AI_KEY=')).join('\n');
+        fs.writeFileSync(ENV_PATH, (filtered ? filtered + '\n' : '') + envLine);
+      } catch {}
+    }
+  } else {
+    config.aiEnabled = false;
+  }
+
+  // Save
+  saveConfig(config);
+  rl.close();
+
+  console.log('\n  Config saved to config.json');
+  console.log('  Run `airmic setup` anytime to reconfigure.');
 }
 
 // ─── Start app (TUI or headless inline) ──────────────────────────────────────
@@ -159,6 +255,14 @@ function startApp(headless) {
   // QR rendering
   function doRenderQR() {
     const useRelay = config.relayUrl && relay.roomToken;
+    const relayPending = config.relayUrl && !relay.roomToken;
+
+    if (relayPending) {
+      // Relay configured but not connected yet — don't show unreachable local IP
+      tui.renderQR(null, 'relay-pending', localUrl);
+      return;
+    }
+
     const displayUrl = useRelay
       ? config.relayUrl.replace(/^wss:\/\//, 'https://').replace(/\/$/, '') + `/${relay.roomToken}`
       : localUrl;
