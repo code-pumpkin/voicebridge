@@ -117,7 +117,10 @@ const DEFAULT_CONFIG = {
   relaySecret: '',
   relayRejectUnauthorized: true,
   relayServers: [
-    { name: 'VoiceBridge Cloud', url: 'wss://voicebridge.returnfeed.com:4001', secret: '' },
+    { name: 'VoiceBridge Cloud 1', url: 'wss://vbrelay1.returnfeed.com:4001', secret: '' },
+    { name: 'VoiceBridge Cloud 2', url: 'wss://vbrelay2.returnfeed.com:4001', secret: '' },
+    { name: 'VoiceBridge Cloud 3', url: 'wss://vbrelay3.returnfeed.com:4001', secret: '' },
+    { name: 'VoiceBridge Cloud 4', url: 'wss://vbrelay4.returnfeed.com:4001', secret: '' },
   ],
   aiEnabled:   false,
   aiProvider:  'openai',   // 'openai' | 'anthropic' | 'google'
@@ -686,6 +689,35 @@ function showCommandPalette() {
 }
 
 screen.key('C-e', showRelayServers);
+
+// ─── Relay health check ──────────────────────────────────────────────────────
+function checkRelayHealth(relayUrl, secret, timeout = 3000) {
+  return new Promise((resolve) => {
+    try {
+      const healthUrl = relayUrl.replace(/^wss:\/\//, 'https://').replace(/\/$/, '') + '/health';
+      const url = new URL(healthUrl);
+      const opts = {
+        hostname: url.hostname, port: url.port || 443, path: url.pathname,
+        method: 'GET', rejectUnauthorized: false, timeout,
+        headers: secret ? { Authorization: `Bearer ${secret}` } : {},
+      };
+      const req = https.request(opts, (res) => {
+        let body = '';
+        res.on('data', (d) => { body += d; });
+        res.on('end', () => {
+          if (res.statusCode === 200) {
+            try { const j = JSON.parse(body); resolve({ up: true, rooms: j.rooms ? j.rooms.length : 0 }); }
+            catch { resolve({ up: true, rooms: 0 }); }
+          } else resolve({ up: false });
+        });
+      });
+      req.on('error', () => resolve({ up: false }));
+      req.on('timeout', () => { req.destroy(); resolve({ up: false }); });
+      req.end();
+    } catch { resolve({ up: false }); }
+  });
+}
+
 function showRelayServers() {
   if (!Array.isArray(config.relayServers)) config.relayServers = [...DEFAULT_CONFIG.relayServers];
   if (config.relayServers.length === 0) config.relayServers = [...DEFAULT_CONFIG.relayServers];
@@ -706,16 +738,33 @@ function showRelayServers() {
       `{${T.textDim}-fg}Select, add, or remove relay servers{/${T.textDim}-fg}`,
   });
 
+  // Health status cache: url → { up, rooms } | 'checking' | null
+  const healthCache = {};
+
   function buildItems() {
     const items = config.relayServers.map(s => {
       const active = s.url === config.relayUrl ? ` {${T.green}-fg}●{/${T.green}-fg}` : '';
-      return `  ${s.name || s.url.slice(0, 40)}${active}`;
+      let status = '';
+      const h = healthCache[s.url];
+      if (h === 'checking') status = ` {${T.textDim}-fg}…{/${T.textDim}-fg}`;
+      else if (h && h.up) status = ` {${T.green}-fg}▲{/${T.green}-fg}`;
+      else if (h && !h.up) status = ` {${T.red}-fg}▼{/${T.red}-fg}`;
+      return `  ${s.name || s.url.slice(0, 35)}${active}${status}`;
     });
     items.push(`  {${T.cyan}-fg}+ Add custom server{/${T.cyan}-fg}`);
     items.push(`  {${T.red}-fg}- Remove a server{/${T.red}-fg}`);
     items.push(`  {${T.yellow}-fg}× Disable relay{/${T.yellow}-fg}`);
     return items;
   }
+
+  // Fire off health checks for all servers
+  config.relayServers.forEach(s => {
+    healthCache[s.url] = 'checking';
+    checkRelayHealth(s.url, s.secret).then(result => {
+      healthCache[s.url] = result;
+      try { sList.setItems(buildItems()); screen.render(); } catch {}
+    });
+  });
 
   const sList = blessed.list({
     parent: form, top: 3, left: 0, width: '100%-4',

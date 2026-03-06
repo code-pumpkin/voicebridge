@@ -1,9 +1,9 @@
 # VoiceBridge
 
-Turn your phone into a wireless microphone that types speech directly into your Linux desktop. Your phone handles speech recognition, and the text is typed into whatever window is focused — no drivers, no Bluetooth, no pairing headaches.
+Turn your phone into a wireless microphone that types speech directly into your desktop. Your phone handles speech recognition, and the text is typed into whatever window is focused — no drivers, no Bluetooth, no pairing headaches.
 
 ```
-Phone (browser) → WebSocket → Desktop (xdotool types into focused window)
+Phone (browser) → WebSocket → Desktop (types into focused window)
 ```
 
 ## How it works
@@ -15,14 +15,49 @@ Phone (browser) → WebSocket → Desktop (xdotool types into focused window)
 
 Works over your local WiFi network, or over the internet via a relay server.
 
+## Platform support
+
+| Component | Linux | macOS | Windows |
+|-----------|-------|-------|---------|
+| Phone UI (browser) | ✅ | ✅ | ✅ |
+| Relay server | ✅ | ✅ | ✅ |
+| Desktop agent (local typing) | ✅ X11 | ⚠️ Partial | ⚠️ Partial |
+
+The phone UI runs in any modern browser (Chrome, Safari, Edge). The relay server is pure Node.js and runs anywhere.
+
+The desktop agent currently uses `xdotool` for keystroke injection, which is Linux/X11 native. On macOS and Windows, you can run VoiceBridge in **clipboard mode** (`clipboardMode: true` in config.json) — speech text is copied to your clipboard and pasted into the focused window. Full native keystroke support for macOS (AppleScript) and Windows (PowerShell/SendKeys) is planned.
+
 ## Requirements
 
-- Linux desktop with X11 (Wayland not supported — xdotool requirement)
+### Linux
+
+- X11 desktop (Wayland not yet supported)
 - Node.js 18+
 - `xdotool` and `xclip`
 
 ```bash
 sudo apt install xdotool xclip
+```
+
+### macOS
+
+- Node.js 18+
+- `pbcopy` (pre-installed on macOS)
+- Works in clipboard mode out of the box
+
+```bash
+brew install node
+```
+
+### Windows
+
+- Node.js 18+
+- Works in clipboard mode out of the box
+- PowerShell (pre-installed) handles clipboard operations
+
+```bash
+# Install Node.js from https://nodejs.org or via winget:
+winget install OpenJS.NodeJS.LTS
 ```
 
 ## Quick start
@@ -241,8 +276,11 @@ Accept the self-signed certificate warning in your phone's browser. On some phon
 **"Speech recognition not supported"**
 Use Chrome or Safari. Firefox doesn't support the Web Speech API.
 
-**Text not appearing on desktop**
+**Text not appearing on desktop (Linux)**
 Make sure `xdotool` is installed and you're running X11 (not Wayland). Check that the target window is focused.
+
+**Text not appearing on desktop (macOS/Windows)**
+Make sure `clipboardMode` is set to `true` in `config.json`. VoiceBridge will copy text to your clipboard and paste it into the focused window.
 
 **Android "pyramid" effect (repeated text)**
 This is handled automatically — VoiceBridge uses single-shot recognition mode on Android with auto-restart.
