@@ -1,6 +1,7 @@
 'use strict';
 
 const { escape } = require('../utils');
+const { typeCmd, deleteCmd } = require('../utils/input');
 
 /**
  * OpLog — linked operation history for tracking typed text.
@@ -95,8 +96,8 @@ class OpLog {
     next.status = 'running';
 
     const cmd = next.type === 'type'
-      ? `xdotool type --clearmodifiers -- '${escape(next.text)}'`
-      : `xdotool key --clearmodifiers --repeat ${Math.min(next.charCount, 500)} BackSpace`;
+      ? typeCmd(next.text, escape)
+      : deleteCmd(next.charCount);
 
     execFn(cmd, () => {
       next.status = 'done';

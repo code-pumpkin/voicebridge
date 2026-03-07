@@ -4,7 +4,8 @@ const crypto = require('crypto');
 const WebSocket = require('ws');
 const OpLog = require('./oplog');
 const { getVoiceCommands } = require('./voice-commands');
-const { safeSend, runCmd, safeKey, toClipboard, applyReplacements, escape } = require('../utils');
+const { safeSend, runCmd, safeKey, applyReplacements, escape } = require('../utils');
+const { keyCmd, pasteCmd, toClipboard } = require('../utils/input');
 const { aiSummarize } = require('../ai');
 const VirtualWS = require('../relay/virtual-ws');
 
@@ -144,7 +145,7 @@ function createConnectionHandler(ctx) {
 
       function typeOrClip(text, interim = false) {
         if (state.clipboardMode) {
-          toClipboard(text, (err) => { if (!err) require('child_process').exec('xdotool key --clearmodifiers ctrl+v'); });
+          toClipboard(text, (err) => { if (!err) require('child_process').exec(pasteCmd()); });
         } else {
           oplog.addType(text, interim);
           drainOps();
@@ -203,7 +204,7 @@ function createConnectionHandler(ctx) {
           }
           else if (vc.action === 'key' && typeof vc.key === 'string') {
             oplog.addType('', false);
-            runCmd(`xdotool key --clearmodifiers ${safeKey(vc.key)}`, () => {}, ctx.logFn);
+            runCmd(keyCmd(vc.key, safeKey), () => {}, ctx.logFn);
             ctx.logFn(`\u2318 ${cmd}`, 'command');
           }
           else if (vc.action === 'type' && typeof vc.text === 'string') {

@@ -218,11 +218,17 @@ function startApp(headless, mode) {
     config.relayUrl = 'wss://amrelay1.returnfeed.com:4001';
   }
 
+  // Detect input backend (xdotool, ydotool, osascript, powershell)
+  const inputBackend = require('./src/utils/input');
+
   // Prune sessions daily
   setInterval(() => pruneSessions(sessions), 24 * 60 * 60 * 1000);
 
   // Create TUI (or headless stubs)
   const tui = createTUI(config, { headless });
+
+  // Initialize input backend with TUI logger
+  inputBackend.detect(tui.logPhrase);
 
   // Create HTTP/WSS server
   const { app, server, wss } = createServer(config, ROOT);

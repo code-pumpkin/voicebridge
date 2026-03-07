@@ -11,10 +11,10 @@ function escape(text) {
 }
 
 /**
- * Whitelist filter for xdotool key names.
+ * Whitelist filter for key names.
  */
 function safeKey(key) {
-  return String(key).replace(/[^a-zA-Z0-9_\- ]/g, '');
+  return String(key).replace(/[^a-zA-Z0-9_\-+ ]/g, '');
 }
 
 /**
@@ -31,18 +31,9 @@ function safeSend(ws, data) {
  */
 function runCmd(cmd, cb, logFn) {
   exec(cmd, (err) => {
-    if (err && logFn) logFn(`xdotool: ${err.message}`, 'warn');
+    if (err && logFn) logFn(`input: ${err.message}`, 'warn');
     cb && cb();
   });
-}
-
-/**
- * Copy text to clipboard via xclip.
- */
-function toClipboard(text, cb) {
-  const p = exec('xclip -selection clipboard', cb);
-  p.stdin.write(text);
-  p.stdin.end();
 }
 
 /**
@@ -59,4 +50,4 @@ function applyReplacements(text, wordReplacements) {
   return out;
 }
 
-module.exports = { escape, safeKey, safeSend, runCmd, toClipboard, applyReplacements };
+module.exports = { escape, safeKey, safeSend, runCmd, applyReplacements };
