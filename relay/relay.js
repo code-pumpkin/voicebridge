@@ -22,7 +22,9 @@ const PING_MS      = 25000;
 const PING_TTL     = 10000;
 const REG_TIMEOUT  = 8000;
 const RATE_WINDOW  = 60000; // 1 minute window
-const RATE_MAX     = 20;    // max connections per IP per window
+const RATE_MAX     = 200;   // generous — real users reconnect; bots caught by reg timeout
+const FAILED_REG_WINDOW = 60000;
+const FAILED_REG_MAX    = 10;  // strict — IPs that never register are likely bots
 const MSG_RATE_WINDOW = 1000; // 1 second window for message rate
 const MSG_RATE_MAX    = 30;   // max messages per second per socket
 const TOKEN_RE     = /^[a-f0-9]{8,64}$/; // valid urlToken format
@@ -30,8 +32,23 @@ const TOKEN_RE     = /^[a-f0-9]{8,64}$/; // valid urlToken format
 // ─── Rate limiter ─────────────────────────────────────────────────────────────
 // ip → { count, resetAt }
 const ipRates = new Map();
+// IPs with registered hosts — exempt from connection rate limiting
+const knownHostIPs = new Set();
+// IPs that connect but never register — likely bots/scanners
+const failedRegIPs = new Map(); // ip → { count, resetAt }
 
 function checkRate(ip) {
+  // Exempt known host IPs (they reconnect legitimately)
+  if (knownHostIPs.has(ip)) return true;
+
+  // Block IPs that repeatedly fail to register (bots/scanners)
+  const failEntry = failedRegIPs.get(ip);
+  if (failEntry) {
+    const now = Date.now();
+    if (now > failEntry.resetAt) { failedRegIPs.delete(ip); }
+    else if (failEntry.count >= FAILED_REG_MAX) return false;
+  }
+
   const now  = Date.now();
   const entry = ipRates.get(ip) || { count: 0, resetAt: now + RATE_WINDOW };
   if (now > entry.resetAt) { entry.count = 0; entry.resetAt = now + RATE_WINDOW; }
@@ -45,10 +62,25 @@ function checkRate(ip) {
   return entry.count <= RATE_MAX;
 }
 
+/** Track IPs that connect but never register (called on reg timeout). */
+function trackFailedReg(ip) {
+  if (knownHostIPs.has(ip)) return;
+  const now = Date.now();
+  const entry = failedRegIPs.get(ip) || { count: 0, resetAt: now + FAILED_REG_WINDOW };
+  if (now > entry.resetAt) { entry.count = 0; entry.resetAt = now + FAILED_REG_WINDOW; }
+  entry.count++;
+  failedRegIPs.set(ip, entry);
+  if (failedRegIPs.size > 10000) {
+    const oldest = [...failedRegIPs.entries()].sort((a, b) => a[1].resetAt - b[1].resetAt)[0];
+    if (oldest) failedRegIPs.delete(oldest[0]);
+  }
+}
+
 // clean up stale rate entries every 5 minutes
 setInterval(() => {
   const now = Date.now();
   ipRates.forEach((v, k) => { if (now > v.resetAt) ipRates.delete(k); });
+  failedRegIPs.forEach((v, k) => { if (now > v.resetAt) failedRegIPs.delete(k); });
 }, 300000);
 
 const MAX_MSG_BYTES = 64 * 1024; // 64 KB max message size
@@ -226,7 +258,7 @@ wss.on('connection', (ws, req) => {
 
   // drop unregistered connections that never send a first message
   const regTimer = setTimeout(() => {
-    if (!role) { ws.terminate(); log('dropped unregistered socket (timeout)'); }
+    if (!role) { trackFailedReg(ip); ws.terminate(); log('dropped unregistered socket (timeout)'); }
   }, REG_TIMEOUT);
   ws.on('close', () => clearTimeout(regTimer));
 
@@ -290,6 +322,7 @@ wss.on('connection', (ws, req) => {
         role = 'host';
         room.host = ws;
         room.localUrl = (typeof msg.localUrl === 'string' && msg.localUrl.length < 200) ? msg.localUrl : null;
+        knownHostIPs.add(ip);
         safeSend(ws, { type: 'registered', roomToken });
         log(`host registered   roomToken=${roomToken.slice(0,8)}…  localUrl=${room.localUrl || 'none'}`);
         room.clients.forEach((_, cid) => safeSend(ws, { type: 'client-connect', clientId: cid }));

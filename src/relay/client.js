@@ -24,6 +24,7 @@ class RelayClient {
     this.roomToken = null;
     this.stopped = false;
     this.virtualClients = new Map();
+    this._retryCount = 0;
   }
 
   connect() {
@@ -47,6 +48,7 @@ class RelayClient {
 
     ws.on('open', () => {
       this.status = 'connected';
+      this._retryCount = 0;  // reset backoff on successful connection
       this.onStatus(this.status);
       safeSend(ws, {
         type: 'host-register',
@@ -132,9 +134,11 @@ class RelayClient {
       this.virtualClients.clear();
       this.onQR();
       if (this.stopped) return;
-      this.logFn('Relay disconnected — retrying in 5s', 'warn');
+      this._retryCount++;
+      const delay = Math.min(5000 * Math.pow(1.5, this._retryCount - 1), 60000);
+      this.logFn(`Relay disconnected — retrying in ${Math.round(delay / 1000)}s`, 'warn');
       this.onStatus(this.status);
-      setTimeout(() => this.connect(), 5000);
+      setTimeout(() => this.connect(), delay);
     });
 
     ws.on('error', (err) => {
