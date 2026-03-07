@@ -8,93 +8,62 @@ Phone (browser) → WebSocket → Desktop (types into focused window)
 
 ## How it works
 
-1. Start AirMic on your desktop — a TUI appears with a QR code
-2. Scan the QR code with your phone's camera
-3. Tap the mic button and start talking
-4. Text appears in your focused desktop window in real-time
+1. Run `npx airmic` or `airmic` — a setup wizard runs on first launch
+2. A TUI appears with a QR code
+3. Scan the QR code with your phone's camera
+4. Approve the device via 6-digit PIN
+5. Tap the mic button and start talking
+6. Text appears in your focused desktop window in real-time
 
 Works over your local WiFi network, or over the internet via a relay server.
 
+## Install
+
+```bash
+# Run directly (no install)
+npx airmic
+
+# Or install globally
+npm install -g airmic
+airmic
+```
+
+On first run, a setup wizard asks for connection mode (local/relay/both), port, network interface, and optional AI config. Run `airmic setup` anytime to reconfigure.
+
 ## Platform support
 
-| Component | Linux | macOS | Windows |
-|-----------|-------|-------|---------|
-| Phone UI (browser) | ✅ | ✅ | ✅ |
-| Relay server | ✅ | ✅ | ✅ |
-| Desktop agent (local typing) | ✅ X11 | ⚠️ Partial | ⚠️ Partial |
+| Component | Linux (X11) | Linux (Wayland/TTY) | macOS | Windows |
+|-----------|-------------|---------------------|-------|---------|
+| Desktop typing | ✅ xdotool | ✅ ydotool | ✅ osascript | ✅ PowerShell |
+| Clipboard mode | ✅ xclip | ✅ wl-copy | ✅ pbcopy | ✅ Set-Clipboard |
+| Phone UI (browser) | ✅ | ✅ | ✅ | ✅ |
+| Relay server | ✅ | ✅ | ✅ | ✅ |
 
-The phone UI runs in any modern browser (Chrome, Safari, Edge). The relay server is pure Node.js and runs anywhere.
+The input backend is auto-detected at startup. AirMic picks the best available tool for your platform and display server.
 
-The desktop agent currently uses `xdotool` for keystroke injection, which is Linux/X11 native. On macOS and Windows, you can run AirMic in **clipboard mode** (`clipboardMode: true` in config.json) — speech text is copied to your clipboard and pasted into the focused window. Full native keystroke support for macOS (AppleScript) and Windows (PowerShell/SendKeys) is planned.
+### Requirements
 
-## Requirements
+**Linux (X11):** `sudo apt install xdotool xclip`
+**Linux (Wayland/TTY):** `sudo apt install ydotool` + `sudo ydotoold &`
+**macOS:** Works out of the box (osascript + pbcopy)
+**Windows:** Works out of the box (PowerShell + SendKeys)
 
-### Linux
+Node.js 18+ required on all platforms.
 
-- X11 desktop (Wayland not yet supported)
-- Node.js 18+
-- `xdotool` and `xclip`
+## Headless mode (daemon)
 
-```bash
-sudo apt install xdotool xclip
-```
-
-### macOS
-
-- Node.js 18+
-- `pbcopy` (pre-installed on macOS)
-- Works in clipboard mode out of the box
+Run as a background daemon — useful for servers, SSH sessions, or headless machines:
 
 ```bash
-brew install node
+airmic headless on relay    # Start daemon in relay mode
+airmic headless on local    # Start daemon in local-only mode
+airmic headless on          # Start daemon (uses config)
+airmic headless off         # Stop daemon
+airmic status               # Show status, URLs, pending PINs
+airmic approve <PIN>        # Approve a new device by PIN
 ```
 
-### Windows
-
-- Node.js 18+
-- Works in clipboard mode out of the box
-- PowerShell (pre-installed) handles clipboard operations
-
-```bash
-# Install Node.js from https://nodejs.org or via winget:
-winget install OpenJS.NodeJS.LTS
-```
-
-## Quick start
-
-```bash
-# Clone the repo
-git clone https://github.com/code-pumpkin/airmic.git
-cd airmic
-
-# Install dependencies
-npm install
-
-# Generate a self-signed TLS cert (required — browsers need HTTPS for mic access)
-bash gen-cert.sh
-
-# Start AirMic
-node server.js
-```
-
-A TUI launches with a QR code. Scan it with your phone, accept the self-signed cert warning once, and you're live.
-
-### Headless mode (daemon)
-
-Run as a background daemon (useful for SSH sessions):
-
-```bash
-airmic headless on       # Start daemon
-airmic headless off      # Stop daemon
-airmic status            # Check status
-airmic approve <PIN>     # Approve new device
-```
-
-Or run inline without the TUI:
-
-```bash
-npx airmic
-```
+The daemon prints a QR code and relay URL on startup, then detaches. Approve devices from another terminal with `airmic approve`.
 
 ## Phone UI
 
@@ -122,6 +91,46 @@ AirMic Cloud is included as a default relay. To use it, press `Ctrl+K` → Relay
 
 The phone will automatically try a direct local connection first and fall back to the relay if your desktop isn't reachable locally.
 
+## Voice commands
+
+Say these phrases and they'll be executed instead of typed:
+
+| Command | Action |
+|---------|--------|
+| "scratch that" | Delete the last phrase |
+| "undo" / "undo that" | Ctrl+Z |
+| "redo" / "redo that" | Ctrl+Y |
+| "new line" / "enter" | Enter key |
+| "new paragraph" | Double Enter |
+| "tab" | Tab key |
+| "select all" | Ctrl+A |
+| "copy" / "cut" / "paste" | Ctrl+C / Ctrl+X / Ctrl+V |
+| "delete" / "backspace" | Delete / BackSpace key |
+| "go up/down/left/right" | Arrow keys |
+| "go home" / "go end" | Home / End keys |
+| "period" / "comma" / "question mark" | Punctuation |
+| "open bracket" / "close bracket" | ( ) |
+| "open quote" / "close quote" | " " |
+| "dash" / "colon" / "semicolon" | Punctuation |
+| "hashtag" / "at sign" / "dollar sign" | Symbols |
+
+Plus many more — see `src/connection/voice-commands.js` for the full list.
+
+### Custom voice commands
+
+Add your own in `config.json`:
+
+```json
+{
+  "voiceCommandsExtra": {
+    "sign off": { "action": "type", "text": "Best regards,\nJohn" },
+    "save file": { "action": "key", "key": "ctrl+s" }
+  }
+}
+```
+
+Actions: `type` (insert text), `key` (press key combo), `scratch` (delete last phrase).
+
 ## TUI keyboard shortcuts
 
 | Key | Action |
@@ -143,17 +152,15 @@ Supports OpenAI, Anthropic, and Google AI.
 
 ### Setup
 
-1. Add your API key to `.env`:
+Run `airmic setup` and enable AI when prompted, or configure interactively with `Ctrl+A` in the TUI.
+
+API keys are stored in `~/.airmic/.env`:
 
 ```bash
-cp .env.example .env
-# Edit .env and add your key:
-# AIRMIC_AI_KEY=sk-your-key-here
+AIRMIC_AI_KEY=sk-your-key-here
 ```
 
-Or configure interactively: `Ctrl+A` in the TUI.
-
-2. Toggle AI on/off from the TUI (`Ctrl+A` → `Ctrl+T`) or from the phone's AI button.
+Toggle AI on/off from the TUI (`Ctrl+A`) or from the phone's AI button.
 
 | Provider | Default model |
 |----------|--------------|
@@ -170,7 +177,29 @@ Auto-replace words or phrases as they're typed. Useful for fixing consistent mis
 - `Ctrl+R` to add a replacement (e.g., "gonna" → "going to")
 - `Ctrl+D` to remove one
 
-Replacements are saved to `config.json` and apply to all future transcriptions.
+Replacements are saved to config and apply to all future transcriptions.
+
+## Config
+
+Config is stored in `~/.airmic/config.json` (auto-generated on first run or via `airmic setup`).
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `port` | `4000` | Local HTTPS port |
+| `bindAddress` | `""` | Bind to specific IP (blank = auto-detect) |
+| `language` | `en-US` | Speech recognition language (BCP 47) |
+| `clipboardMode` | `false` | Paste via clipboard instead of keystroke injection |
+| `wordReplacements` | `{}` | Auto-replace map (e.g., `{"gonna": "going to"}`) |
+| `voiceCommandsExtra` | `{}` | Custom voice commands |
+| `relayUrl` | `""` | Active relay server URL |
+| `relaySecret` | `""` | Must match `RELAY_SECRET` on the relay |
+| `relayServers` | `[...]` | Saved relay server list |
+| `aiEnabled` | `false` | Enable AI text cleanup |
+| `aiProvider` | `openai` | `openai`, `anthropic`, or `google` |
+| `aiModel` | `""` | Blank = provider default |
+| `aiPrompt` | *(built-in)* | System prompt for AI rewriting |
+
+API keys are stored in `~/.airmic/.env`. See `.env.example`.
 
 ## Self-hosting a relay server
 
@@ -182,7 +211,7 @@ Any VPS with Node.js 18+ works. AWS Lightsail $3.50/month (512MB) is plenty. Ope
 
 ```bash
 # On your VPS (as root)
-git clone <this-repo> /tmp/wmic
+git clone https://github.com/code-pumpkin/airmic.git /tmp/wmic
 cd /tmp/wmic/relay
 bash deploy.sh
 ```
@@ -218,34 +247,6 @@ Environment=CERT_DIR=/etc/letsencrypt/live/yourdomain.com
 
 Press `Ctrl+K` → Relay Servers → Add custom server. Enter your relay URL (`wss://yourdomain.com:4001`) and secret.
 
-## Config reference
-
-Config is stored in `config.json` (auto-generated on first run).
-
-| Key | Default | Description |
-|-----|---------|-------------|
-| `port` | `4000` | Local HTTPS port |
-| `language` | `en-US` | Speech recognition language (BCP 47) |
-| `clipboardMode` | `false` | Paste via clipboard instead of xdotool typing |
-| `wordReplacements` | `{}` | Auto-replace map (e.g., `{"gonna": "going to"}`) |
-| `relayUrl` | `""` | Active relay server URL |
-| `relaySecret` | `""` | Must match `RELAY_SECRET` on the relay |
-| `relayServers` | `[...]` | Saved relay server list |
-| `aiEnabled` | `false` | Enable AI text cleanup |
-| `aiProvider` | `openai` | `openai`, `anthropic`, or `google` |
-| `aiModel` | `""` | Blank = provider default |
-| `aiPrompt` | *(built-in)* | System prompt for AI rewriting |
-
-API keys are stored in `.env` (not config.json). See `.env.example`.
-
-## Environment variables
-
-| Variable | Description |
-|----------|-------------|
-| `AIRMIC_AI_KEY` | AI provider API key |
-
-Set these in `.env` or export them in your shell.
-
 ## Security
 
 - All connections are TLS-encrypted (HTTPS + WSS)
@@ -253,29 +254,11 @@ Set these in `.env` or export them in your shell.
 - New devices must be approved via 6-digit PIN confirmation on the desktop
 - Returning devices are remembered via cryptographic device tokens
 - Per-socket message rate limiting (30 msg/sec)
-- HTTP rate limiting (60 req/min per IP)
+- Connection rate limiting with bot detection (IPs that never register get blocked)
 - Security headers: HSTS, CSP, X-Frame-Options, nosniff, Referrer-Policy
 - Control characters stripped before typing
-- API keys stored in `.env`, not in config
+- API keys stored in `~/.airmic/.env`, not in config
 - Sessions auto-expire after 90 days
-
-## Project structure
-
-```
-├── server.js              # Desktop app — TUI, WebSocket server, xdotool integration
-├── public/
-│   └── index.html         # Phone web UI (single self-contained file)
-├── relay/
-│   ├── relay.js           # Relay server for internet access
-│   ├── deploy.sh          # VPS deployment script
-│   ├── wireless-mic-relay.service  # systemd service file
-│   └── public/
-│       └── index.html     # Phone UI copy served by relay
-├── gen-cert.sh            # Self-signed cert generator
-├── config.example.json    # Example configuration
-├── .env.example           # Example environment variables
-└── package.json
-```
 
 ## Troubleshooting
 
@@ -285,17 +268,23 @@ Accept the self-signed certificate warning in your phone's browser. On some phon
 **"Speech recognition not supported"**
 Use Chrome or Safari. Firefox doesn't support the Web Speech API.
 
-**Text not appearing on desktop (Linux)**
-Make sure `xdotool` is installed and you're running X11 (not Wayland). Check that the target window is focused.
+**Text not appearing on desktop (Linux X11)**
+Make sure `xdotool` is installed and you're running X11. Check that the target window is focused.
+
+**Text not appearing on desktop (Linux TTY/Wayland)**
+Install `ydotool` and start the daemon: `sudo ydotoold &`. AirMic auto-detects it.
 
 **Text not appearing on desktop (macOS/Windows)**
-Make sure `clipboardMode` is set to `true` in `config.json`. AirMic will copy text to your clipboard and paste it into the focused window.
+Should work out of the box. If not, set `clipboardMode: true` in config.
 
 **Android "pyramid" effect (repeated text)**
 This is handled automatically — AirMic uses single-shot recognition mode on Android with auto-restart.
 
 **Relay connection fails**
 Check that port 4001 is open on the VPS, the relay secret matches, and the service is running (`systemctl status wireless-mic-relay`).
+
+**"No input backend found"**
+Install `xdotool` (X11), `ydotool` (Wayland/TTY), or run on macOS/Windows.
 
 ## License
 
