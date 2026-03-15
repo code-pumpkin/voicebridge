@@ -1,157 +1,193 @@
 'use strict';
 
 const { escape } = require('../utils');
-const { typeCmd, deleteCmd } = require('../utils/input');
+const { compoundCmd } = require('../utils/input');
+
+const PHRASE_TTL = 2 * 60 * 1000; // 2 minutes
 
 /**
- * OpLog — linked operation history for tracking typed text.
- * Each node represents a typed or deleted segment. Nodes form a chain.
- * On final, we diff against committed (known-done) text and fix only the damage.
+ * ScreenBuffer — tracks what we've typed on screen and executes
+ * compound delete+type commands to reach target states.
  *
- * _screenLen tracks the total chars we believe are on-screen from our typing,
- * surviving across resets so AI replacement and next-phrase spacing work correctly.
+ * Instead of replaying a chain of micro-ops, we maintain:
+ *   _onScreen  — string we believe is currently on screen (our text)
+ *   _queue     — target states to reach [{text, interim, final}]
+ *   _busy      — whether a command is currently executing
+ *
+ * Interims coalesce: if multiple interims queue while one executes,
+ * only the latest survives. Each drain step = 1 shell exec.
  */
 class OpLog {
   constructor() {
-    this._nodes = [];
-    this._nextId = 0;
-    this._running = false;
-    this._pendingReset = false;
-    this._screenLen = 0;          // chars we own on-screen (persists across resets)
+    this._onScreen = '';      // what we believe is typed on screen
+    this._queue = [];         // [{text, interim, final}]
+    this._busy = false;
+    this._phraseHistory = []; // [{text, len, ts}] for scratch-that + screen tracking
   }
-
-  /** Replay nodes to reconstruct on-screen text. */
-  _replay(includeStatuses) {
-    let text = '';
-    for (const n of this._nodes) {
-      if (!includeStatuses.includes(n.status)) continue;
-      if (n.type === 'type') text += n.text;
-      else if (n.type === 'delete') text = text.slice(0, Math.max(0, text.length - n.charCount));
-    }
-    return text;
-  }
-
-  /** What we KNOW is on screen (only completed ops). */
-  committedText() { return this._replay(['done']); }
-
-  /** What SHOULD be on screen once everything drains. */
-  projectedText() { return this._replay(['done', 'running', 'queued']); }
 
   /**
-   * If a deferred reset is pending and new ops arrive, force the reset now.
-   * Old running/queued ops keep executing (they're already spawned or will
-   * drain next), but projected/committed text starts fresh for the new phrase.
+   * Queue a target state. If interim, coalesces with previous queued interims.
+   * @param {string} text - target text to show on screen
+   * @param {boolean} interim - true if this is an interim (can be coalesced/cancelled)
+   * @param {boolean} isFinal - true if this is a final commit
    */
-  _flushPendingReset() {
-    if (!this._pendingReset) return;
-    this._pendingReset = false;
-    // Snapshot screen length from what's done so far
-    this._screenLen = this._replay(['done']).length;
-    // Keep only in-flight ops (running) — they'll finish on their own
-    this._nodes = this._nodes.filter(n => n.status === 'running');
+  queueState(text, interim = false, isFinal = false) {
+    if (interim) {
+      // Coalesce: drop all queued interims, keep only this one
+      this._queue = this._queue.filter(q => !q.interim);
+    }
+    this._queue.push({ text, interim, final: isFinal });
   }
 
-  /** Add a type op. */
-  addType(text, interim = false) {
-    this._flushPendingReset();
-    const node = { id: this._nextId++, type: 'type', text, charCount: text.length, status: 'queued', interim };
-    this._nodes.push(node);
-    return node;
-  }
-
-  /** Add a delete op. */
-  addDelete(charCount, interim = false) {
-    if (charCount <= 0) return null;
-    this._flushPendingReset();
-    const node = { id: this._nextId++, type: 'delete', text: '', charCount, status: 'queued', interim };
-    this._nodes.push(node);
-    return node;
-  }
-
-  /** Cancel all queued interim ops (not yet running). */
+  /** Cancel all queued interim states (not yet executing). */
   cancelInterims() {
-    this._nodes = this._nodes.filter(n => !(n.interim && n.status === 'queued'));
+    this._queue = this._queue.filter(q => !q.interim);
   }
 
-  /** Cancel ALL queued ops. */
+  /** Cancel ALL queued states. */
   cancelQueued() {
-    this._nodes = this._nodes.filter(n => n.status !== 'queued');
+    this._queue = [];
   }
 
-  /** Mark the next queued node as running, execute it, mark done on callback. */
+  /** What we believe is currently on screen. */
+  onScreen() { return this._onScreen; }
+
+  /**
+   * Drain the queue — execute the next target state.
+   * @param {function} execFn - (cmd, callback) to run shell command
+   */
   drain(execFn) {
-    if (this._running) return;
-    const next = this._nodes.find(n => n.status === 'queued');
-    if (!next) {
-      // Queue fully drained — apply deferred reset if requested
-      if (this._pendingReset) {
-        this._pendingReset = false;
-        // Update _screenLen from the final projected state before clearing nodes
-        this._screenLen = this.projectedText().length;
-        this._nodes = [];
-      }
+    if (this._busy) return;
+    if (this._queue.length === 0) return;
+
+    // If multiple items queued, skip stale interims (keep latest interim + any finals)
+    this._coalesceQueue();
+
+    const target = this._queue.shift();
+    if (!target) return;
+
+    const current = this._onScreen;
+    const goal = target.text;
+
+    // Compute minimal diff
+    let common = 0;
+    while (common < current.length && common < goal.length && current[common] === goal[common]) common++;
+
+    const toDelete = current.length - common;
+    const toType = goal.slice(common);
+
+    // Nothing to do — screen already matches
+    if (toDelete === 0 && toType === '') {
+      this._onScreen = goal;
+      // Continue draining
+      this.drain(execFn);
       return;
     }
-    this._running = true;
-    next.status = 'running';
 
-    const cmd = next.type === 'type'
-      ? typeCmd(next.text, escape)
-      : deleteCmd(next.charCount);
+    this._busy = true;
+    const cmd = compoundCmd(toDelete, toType, escape);
 
     execFn(cmd, () => {
-      next.status = 'done';
-      this._running = false;
-      this._compact();
+      this._onScreen = goal;
+      this._busy = false;
       this.drain(execFn);
     });
   }
 
-  /** Merge consecutive done nodes of same type to keep list short. */
-  _compact() {
-    const merged = [];
-    for (const n of this._nodes) {
-      const prev = merged.length > 0 ? merged[merged.length - 1] : null;
-      if (prev && prev.status === 'done' && n.status === 'done' && prev.type === 'type' && n.type === 'type') {
-        prev.text += n.text;
-        prev.charCount += n.charCount;
-      } else {
-        merged.push(n);
-      }
+  /** Drop stale queued interims — only keep the latest interim if multiple exist. */
+  _coalesceQueue() {
+    if (this._queue.length <= 1) return;
+    // Find the last interim index
+    let lastInterimIdx = -1;
+    for (let i = this._queue.length - 1; i >= 0; i--) {
+      if (this._queue[i].interim) { lastInterimIdx = i; break; }
     }
-    this._nodes = merged;
+    if (lastInterimIdx <= 0) return;
+    // Remove all earlier interims
+    this._queue = this._queue.filter((q, i) => !q.interim || i === lastInterimIdx);
   }
 
   /**
-   * Schedule a reset after the current queue drains.
-   * If nothing is queued/running, resets immediately.
+   * Commit a final phrase — clears the screen buffer for the next phrase
+   * and records the phrase in history.
+   * Call AFTER queueing the final state + space.
+   * @param {string} text - the raw phrase text
+   * @param {number} len - chars typed on screen (including trailing space)
    */
-  resetAfterDrain() {
-    const hasWork = this._running || this._nodes.some(n => n.status === 'queued');
-    if (hasWork) {
-      this._pendingReset = true;
-    } else {
-      this._screenLen = this.projectedText().length;
-      this._nodes = [];
+  commitPhrase(text, len) {
+    this._pruneHistory();
+    this._phraseHistory.push({ text, len, ts: Date.now() });
+    if (this._phraseHistory.length > 50) this._phraseHistory.shift();
+  }
+
+  /**
+   * After the final's queued ops drain, reset _onScreen to empty
+   * so the next phrase starts fresh. Called via a sentinel in the queue.
+   */
+  queueReset() {
+    this._queue.push({ text: '', interim: false, final: false, reset: true });
+  }
+
+  /**
+   * Hard reset — on disconnect or voice-command clear.
+   */
+  reset() {
+    this._onScreen = '';
+    this._queue = [];
+    this._busy = false;
+  }
+
+  // ── Phrase history with TTL ──
+
+  _pruneHistory() {
+    const cutoff = Date.now() - PHRASE_TTL;
+    this._phraseHistory = this._phraseHistory.filter(p => p.ts > cutoff);
+  }
+
+  /** Total chars we own on screen across all recent phrases. */
+  screenLength() {
+    this._pruneHistory();
+    return this._phraseHistory.reduce((sum, p) => sum + p.len, 0);
+  }
+
+  /** Manually set screen length — adjusts the latest phrase entry. */
+  setScreenLength(n) {
+    this._pruneHistory();
+    const currentTotal = this._phraseHistory.reduce((sum, p) => sum + p.len, 0);
+    const diff = n - currentTotal;
+    if (this._phraseHistory.length > 0) {
+      this._phraseHistory[this._phraseHistory.length - 1].len += diff;
+    } else if (n > 0) {
+      this._phraseHistory.push({ text: '', len: n, ts: Date.now() });
     }
   }
 
-  /** Hard reset — on disconnect or voice-command clear. */
-  reset() {
-    this._nodes = [];
-    this._running = false;
-    this._pendingReset = false;
-    this._screenLen = 0;
+  /** Push a completed phrase onto the history stack. */
+  pushPhrase(text, len) {
+    this.commitPhrase(text, len);
   }
 
-  /** How many chars we believe are on-screen (survives resets). */
-  screenLength() { return this._screenLen; }
+  /** Pop the most recent phrase from history. Returns { text, len } or null. */
+  popPhrase() {
+    this._pruneHistory();
+    return this._phraseHistory.pop() || null;
+  }
 
-  /** Manually set screen length (e.g. after AI replacement). */
-  setScreenLength(n) { this._screenLen = n; }
+  /** Peek at the most recent phrase without removing it. */
+  peekPhrase() {
+    this._pruneHistory();
+    return this._phraseHistory.length > 0 ? this._phraseHistory[this._phraseHistory.length - 1] : null;
+  }
 
-  /** How many chars are projected on screen. */
-  projectedLength() { return this.projectedText().length; }
+  /** How many chars are projected on screen (current buffer). */
+  projectedLength() {
+    // Walk the queue to find what _onScreen will be after all ops
+    let text = this._onScreen;
+    for (const q of this._queue) {
+      text = q.text;
+    }
+    return text.length;
+  }
 }
 
 module.exports = OpLog;

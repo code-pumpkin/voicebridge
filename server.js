@@ -9,7 +9,7 @@ const { networkInterfaces } = require('os');
 const { initConfig, initSessions, saveConfig, saveSessions, pruneSessions, ROOT, CONFIG_PATH, ENV_PATH, DEFAULT_CONFIG } = require('./src/config');
 const { createServer } = require('./src/connection/http');
 const { createConnectionHandler } = require('./src/connection/handler');
-const { createTUI } = require('./src/tui');
+const { createTUI } = require('./src/tui-react');
 const { createPinSystem } = require('./src/tui/pin-prompt');
 const RelayClient = require('./src/relay/client');
 const dialogs = require('./src/tui/dialogs');
@@ -205,7 +205,7 @@ async function runSetup() {
 
 // ─── Start app (TUI or headless inline) ──────────────────────────────────────
 
-function startApp(headless, mode) {
+async function startApp(headless, mode) {
   const config   = initConfig();
   const sessions = initSessions();
 
@@ -225,7 +225,7 @@ function startApp(headless, mode) {
   setInterval(() => pruneSessions(sessions), 24 * 60 * 60 * 1000);
 
   // Create TUI (or headless stubs)
-  const tui = createTUI(config, { headless });
+  const tui = await createTUI(config, { headless });
 
   // Initialize input backend with TUI logger
   inputBackend.detect(tui.logPhrase);
@@ -565,8 +565,8 @@ function startDaemon(mode) {
         const resp = JSON.parse(buf.split('\n')[0]);
         conn.destroy();
 
-        // If relay mode, keep polling until relay is connected (or timeout)
-        if (mode === 'relay' && resp.relayUrl && resp.relayStatus !== 'connected') {
+        // If relay mode, keep polling until relay is connected AND has a room token
+        if (mode === 'relay' && resp.relayUrl && (!resp.relayDisplayUrl || resp.relayStatus !== 'connected')) {
           return; // keep polling
         }
 

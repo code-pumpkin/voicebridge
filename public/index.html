@@ -120,20 +120,20 @@
     .conn-badge.err .dot { background: var(--red); }
     .conn-badge.wait .dot { background: var(--yellow); }
 
-    /* mic area — compact hero */
+    /* mic area — centered hero */
     .mic-area {
       width: 100%; max-width: var(--max-w);
-      display: flex; align-items: center; gap: 16px;
-      padding: 12px 4px; flex-shrink: 0;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 20px 4px 8px; flex-shrink: 0;
     }
     #mic-btn {
-      width: 72px; height: 72px; min-width: 72px;
+      width: 96px; height: 96px; min-width: 96px;
       border-radius: 50%; border: 2px solid var(--border);
-      background: var(--surface); color: var(--text2); font-size: 28px;
+      background: var(--surface); color: var(--text2); font-size: 36px;
       cursor: pointer; transition: all 0.2s;
       display: flex; align-items: center; justify-content: center;
       user-select: none; -webkit-user-select: none;
-      box-shadow: 0 2px 16px rgba(0,0,0,0.3);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
     }
     #mic-btn:active { transform: scale(0.94); }
     #mic-btn.listening {
@@ -143,35 +143,36 @@
     #mic-btn.paused-state { opacity: 0.25; pointer-events: none; }
     @keyframes mic-pulse {
       0%   { box-shadow: 0 0 0 0 rgba(224,108,117,0.25); }
-      70%  { box-shadow: 0 0 0 14px rgba(224,108,117,0); }
+      70%  { box-shadow: 0 0 0 18px rgba(224,108,117,0); }
       100% { box-shadow: 0 0 0 0 rgba(224,108,117,0); }
     }
-    .mic-info { flex: 1; min-width: 0; }
     #mic-status {
       font-size: 13px; color: var(--text3); min-height: 18px;
+      margin-top: 10px; text-align: center;
     }
 
-    /* transcript */
+    /* transcript — full width below mic */
     #transcript {
-      min-height: 40px; max-height: 80px;
+      width: 100%; max-width: var(--max-w);
+      min-height: 44px; max-height: 100px;
       background: var(--surface); border-left: 3px solid var(--accent);
-      border-radius: 0 10px 10px 0; padding: 8px 12px;
-      font-size: 14px; color: var(--text); line-height: 1.5;
+      border-radius: 0 10px 10px 0; padding: 10px 14px;
+      font-size: 15px; color: var(--text); line-height: 1.5;
       word-break: break-word; overflow-y: auto;
-      margin-top: 6px;
+      margin: 10px 0 0; flex-shrink: 0;
     }
     #transcript .interim { color: var(--text3); font-style: italic; }
 
-    /* controls — bottom toolbar */
+    /* controls — 3 pill toggles */
     .controls {
       width: 100%; max-width: var(--max-w);
-      display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;
-      flex-shrink: 0; padding: 8px 4px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+      flex-shrink: 0; padding: 12px 4px 8px;
     }
     .ctrl-btn {
-      padding: 10px 0; border-radius: 12px;
+      padding: 10px 0; border-radius: 24px;
       border: 1px solid var(--border); background: var(--surface); color: var(--text3);
-      font-size: 12px; cursor: pointer; transition: all 0.15s;
+      font-size: 13px; cursor: pointer; transition: all 0.15s;
       white-space: nowrap; font-weight: 500;
       min-height: 44px; display: flex; align-items: center; justify-content: center;
     }
@@ -181,18 +182,36 @@
     .ctrl-btn.clip-on  { border-color: rgba(92,156,245,0.4); color: var(--blue); background: rgba(92,156,245,0.08); }
     .ctrl-btn.ai-on    { border-color: rgba(127,216,143,0.4); color: var(--green); background: rgba(127,216,143,0.08); }
 
-    /* language select */
-    .lang-row {
+    /* settings drawer */
+    .settings-drawer {
       width: 100%; max-width: var(--max-w);
-      padding: 4px 4px 6px; flex-shrink: 0;
+      flex-shrink: 0; padding: 0 4px;
     }
-    .lang-row select {
+    .settings-toggle {
+      width: 100%; background: none; border: none; color: var(--text3);
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+      font-weight: 600; cursor: pointer; padding: 8px 0;
+      display: flex; align-items: center; gap: 6px;
+      min-height: 44px;
+    }
+    .settings-toggle .arrow { transition: transform 0.2s; display: inline-block; font-size: 10px; }
+    .settings-toggle.open .arrow { transform: rotate(90deg); }
+    .settings-body {
+      display: none; flex-direction: column; gap: 8px;
+      padding: 0 0 10px;
+    }
+    .settings-body.open { display: flex; }
+    .settings-body select {
       width: 100%;
       background: var(--surface); color: var(--text2); border: 1px solid var(--border);
       border-radius: 12px; padding: 10px 14px; font-size: 13px;
       -webkit-appearance: none; appearance: none;
       min-height: 44px;
     }
+    .settings-row {
+      display: flex; gap: 8px;
+    }
+    .settings-row .ctrl-btn { flex: 1; border-radius: 12px; font-size: 12px; }
 
     /* history */
     .hist-header {
@@ -200,7 +219,7 @@
       font-size: 11px; color: var(--text3); text-transform: uppercase;
       letter-spacing: 0.08em; font-weight: 600;
       display: flex; justify-content: space-between; align-items: center;
-      flex-shrink: 0; padding: 6px 4px 4px;
+      flex-shrink: 0; padding: 8px 4px 4px;
     }
     .hist-header button {
       background: none; border: none; color: var(--text3);
@@ -210,9 +229,9 @@
     #history {
       width: 100%; max-width: var(--max-w);
       flex: 1; overflow-y: auto; min-height: 0;
-      display: flex; flex-direction: column; gap: 4px;
+      display: flex; flex-direction: column; gap: 6px;
       -webkit-overflow-scrolling: touch;
-      padding-bottom: 8px;
+      padding: 4px 0 12px;
     }
     .hist-item {
       background: var(--surface); border-left: 2px solid var(--border);
@@ -279,36 +298,40 @@
 
     <div class="mic-area">
       <button id="mic-btn">&#x1f3a4;</button>
-      <div class="mic-info">
-        <div id="mic-status">Tap to start</div>
-        <div id="transcript"><span class="interim">Transcript appears here</span></div>
-      </div>
+      <div id="mic-status">Tap to start</div>
     </div>
+
+    <div id="transcript"><span class="interim">Transcript appears here</span></div>
 
     <div class="controls">
       <div class="ctrl-btn" id="pause-btn">Pause</div>
-      <div class="ctrl-btn" id="ptt-btn">Hold</div>
       <div class="ctrl-btn" id="clip-btn">Clipboard</div>
       <div class="ctrl-btn" id="ai-btn">AI</div>
-      <div class="ctrl-btn" onclick="location.reload()">Refresh</div>
     </div>
 
-    <div class="lang-row">
-      <select id="lang-select">
-        <option value="en-US">English (US)</option>
-        <option value="en-GB">English (UK)</option>
-        <option value="en-AU">English (AU)</option>
-        <option value="ar">Arabic</option>
-        <option value="fr-FR">French</option>
-        <option value="de-DE">German</option>
-        <option value="es-ES">Spanish</option>
-        <option value="it-IT">Italian</option>
-        <option value="pt-BR">Portuguese (BR)</option>
-        <option value="zh-CN">Chinese (CN)</option>
-        <option value="ja-JP">Japanese</option>
-        <option value="ko-KR">Korean</option>
-        <option value="hi-IN">Hindi</option>
-      </select>
+    <div class="settings-drawer">
+      <button class="settings-toggle" id="settings-toggle"><span class="arrow">&#x25B6;</span> Settings</button>
+      <div class="settings-body" id="settings-body">
+        <div class="settings-row">
+          <div class="ctrl-btn" id="ptt-btn">Hold</div>
+          <div class="ctrl-btn" onclick="location.reload()">Refresh</div>
+        </div>
+        <select id="lang-select">
+          <option value="en-US">English (US)</option>
+          <option value="en-GB">English (UK)</option>
+          <option value="en-AU">English (AU)</option>
+          <option value="ar">Arabic</option>
+          <option value="fr-FR">French</option>
+          <option value="de-DE">German</option>
+          <option value="es-ES">Spanish</option>
+          <option value="it-IT">Italian</option>
+          <option value="pt-BR">Portuguese (BR)</option>
+          <option value="zh-CN">Chinese (CN)</option>
+          <option value="ja-JP">Japanese</option>
+          <option value="ko-KR">Korean</option>
+          <option value="hi-IN">Hindi</option>
+        </select>
+      </div>
     </div>
 
     <div class="hist-header">
@@ -344,6 +367,14 @@
 
     let paused = false, clipboardMode = false, pttMode = false, aiMode = false;
     let listening = false, recognition;
+
+    // ── Settings drawer ──
+    const settingsToggle = document.getElementById('settings-toggle');
+    const settingsBody = document.getElementById('settings-body');
+    settingsToggle.addEventListener('click', () => {
+      settingsToggle.classList.toggle('open');
+      settingsBody.classList.toggle('open');
+    });
 
     // ── Session ──
     const STORAGE_KEY = 'mic_device_token';

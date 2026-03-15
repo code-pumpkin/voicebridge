@@ -3,7 +3,7 @@ certs/
 sessions.json
 config.json
 .env
-*-session.md
+docs/
 bun.lock
 .vscode/
 .kiro/
@@ -12,9 +12,7 @@ src/shared/
 src/relay/*.ts
 website/
 tsconfig.json
-awsDeployment.md
 abc
-user/
 .airmic.sock
 .airmic.pid
 airmic.log

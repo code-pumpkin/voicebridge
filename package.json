@@ -1,6 +1,6 @@
 {
   "name": "airmic",
-  "version": "1.0.22",
+  "version": "2.0.0",
   "description": "Turn your phone into a wireless microphone for your desktop — real-time speech-to-text typed into any focused window via WebSocket. Works over local WiFi or internet relay. Supports Linux, macOS, and Windows. AI-powered text cleanup with OpenAI, Anthropic, and Google. No app install needed — phone UI runs in the browser.",
   "main": "server.js",
   "bin": {
@@ -14,6 +14,7 @@
     "src/relay/client.js",
     "src/relay/virtual-ws.js",
     "src/tui/",
+    "src/tui-react/",
     "src/utils/",
     "server.test.js",
     "public/",
@@ -76,6 +77,14 @@
     "self-hosted",
     "open-source"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/code-pumpkin/airmic.git"
+  },
+  "homepage": "https://github.com/code-pumpkin/airmic#readme",
+  "bugs": {
+    "url": "https://github.com/code-pumpkin/airmic/issues"
+  },
   "author": "code-pumpkin <code-pumpkin@outlook.com>",
   "license": "MIT",
   "type": "commonjs",
@@ -85,10 +94,13 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.76.0",
     "@google/generative-ai": "^0.24.1",
+    "@opentui/core": "^0.1.86",
+    "@opentui/react": "^0.1.86",
     "blessed": "^0.1.81",
     "express": "^5.2.1",
     "openai": "^6.22.0",
     "qrcode": "^1.5.4",
+    "react": "^19.2.4",
     "ws": "^8.19.0"
   }
 }

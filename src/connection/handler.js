@@ -5,7 +5,7 @@ const WebSocket = require('ws');
 const OpLog = require('./oplog');
 const { getVoiceCommands } = require('./voice-commands');
 const { safeSend, runCmd, safeKey, applyReplacements, escape } = require('../utils');
-const { keyCmd, pasteCmd, toClipboard } = require('../utils/input');
+const { keyCmd, pasteCmd, toClipboard, compoundCmd } = require('../utils/input');
 const { aiSummarize } = require('../ai');
 const VirtualWS = require('../relay/virtual-ws');
 
@@ -20,10 +20,6 @@ const MSG_RATE_MAX    = 30;
  * Returns { handleConnection, broadcast, phoneStates }.
  */
 function createConnectionHandler(ctx) {
-  // ctx: { config, sessions, saveSessions, wss, logFn, setLive, updateStatus,
-  //        getPaused, setPaused, getConnectedCount, setConnectedCount,
-  //        showPinPrompt, relayClient }
-
   const phoneStates = new Map();
   let connectedCount = 0;
 
@@ -135,107 +131,91 @@ function createConnectionHandler(ctx) {
       if (ctx.getPaused() || !msg.text) return;
       if (typeof msg.text !== 'string' || msg.text.length > 2000) return;
 
-      // Initialize OpLog per socket
+      // Initialize ScreenBuffer per socket
       if (!ws._oplog) ws._oplog = new OpLog();
-      const oplog = ws._oplog;
-      if (!ws._lastPhrase) ws._lastPhrase = '';
+      const buf = ws._oplog;
 
       function execOp(cmd, cb) { runCmd(cmd, cb, ctx.logFn); }
-      function drainOps() { oplog.drain(execOp); }
 
-      function typeOrClip(text, interim = false) {
-        if (state.clipboardMode) {
-          toClipboard(text, (err) => { if (!err) require('child_process').exec(pasteCmd()); });
-        } else {
-          oplog.addType(text, interim);
-          drainOps();
-        }
+      // ── Clipboard mode: paste whole text, skip buffer ──
+      function clipSend(text) {
+        toClipboard(text, (err) => { if (!err) require('child_process').exec(pasteCmd()); });
       }
 
-      function deleteChars(count, interim = false) {
-        if (count <= 0) return;
-        oplog.addDelete(count, interim);
-        drainOps();
-      }
-
-      function commonPrefix(a, b) {
-        let i = 0;
-        while (i < a.length && i < b.length && a[i] === b[i]) i++;
-        return i;
-      }
-
+      // ── Interim ──
       if (msg.type === 'interim') {
         ctx.setLive(msg.text, false);
-        const projected = oplog.projectedText();
 
-        if (msg.text.startsWith(projected)) {
-          const delta = msg.text.slice(projected.length);
-          if (delta) typeOrClip(delta, true);
-        } else {
-          oplog.cancelInterims();
-          const committed = oplog.committedText();
-          const cp = commonPrefix(committed, msg.text);
-          const toDelete = committed.length - cp;
-          const toType = msg.text.slice(cp);
-          if (toDelete > 0) deleteChars(toDelete, true);
-          if (toType) typeOrClip(toType, true);
-        }
-        drainOps();
+        if (state.clipboardMode) return; // don't type interims in clipboard mode
 
+        // Queue target state — coalesces with previous interims automatically
+        buf.queueState(msg.text, true);
+        buf.drain(execOp);
+
+      // ── Final ──
       } else if (msg.type === 'final') {
         ctx.setLive(msg.text, true);
 
+        // Check voice commands
         const vcmds = getVoiceCommands(ctx.config);
         const cmd = msg.text.trim().toLowerCase();
         if (Object.hasOwn(vcmds, cmd)) {
           const vc = vcmds[cmd];
           if (!vc || typeof vc !== 'object') return;
-          oplog.cancelQueued();
-          const onScreen = oplog.projectedText();
-          if (onScreen.length > 0) deleteChars(onScreen.length);
+
+          // Cancel any pending ops and clear what's on screen from this phrase
+          buf.cancelQueued();
+          const onScreen = buf.onScreen();
+          if (onScreen.length > 0) {
+            buf.queueState('', false);
+          }
+
           if (vc.action === 'scratch') {
-            const scratchLen = oplog.screenLength();
-            if (scratchLen > 0) {
-              deleteChars(scratchLen);
-              ctx.logFn(`Scratched: "${ws._lastPhrase}"`, 'command');
-              ws._lastPhrase = '';
-              oplog.setScreenLength(0);
+            const phrase = buf.popPhrase();
+            if (phrase && phrase.len > 0) {
+              // Delete the previous phrase from screen using compound command
+              runCmd(compoundCmd(phrase.len, '', escape), () => {}, ctx.logFn);
+              ctx.logFn(`Scratched: "${phrase.text}"`, 'command');
             }
           }
           else if (vc.action === 'key' && typeof vc.key === 'string') {
-            oplog.addType('', false);
             runCmd(keyCmd(vc.key, safeKey), () => {}, ctx.logFn);
             ctx.logFn(`\u2318 ${cmd}`, 'command');
           }
           else if (vc.action === 'type' && typeof vc.text === 'string') {
-            typeOrClip(vc.text.slice(0, 2000));
+            if (state.clipboardMode) {
+              clipSend(vc.text.slice(0, 2000));
+            } else {
+              buf.queueState(vc.text.slice(0, 2000), false, true);
+            }
             ctx.logFn(`\u2318 ${cmd} \u2192 "${vc.text}"`, 'command');
           }
-          oplog.reset();
-          drainOps();
+
+          buf.reset();
+          buf.drain(execOp);
           return;
         }
 
         const finalText = applyReplacements(msg.text, ctx.config.wordReplacements);
-
-        oplog.cancelInterims();
-        const committed = oplog.committedText();
-        const cp = commonPrefix(committed, finalText);
-        const toDelete = committed.length - cp;
-        const toType = finalText.slice(cp) + ' ';
-
-        if (toDelete > 0) deleteChars(toDelete);
-        if (toType.trim()) typeOrClip(toType);
-        else if (toDelete > 0) typeOrClip(' ');
-
         const fullTyped = finalText + ' ';
+
+        if (state.clipboardMode) {
+          clipSend(fullTyped);
+        } else {
+          // Cancel stale interims, queue the final text + trailing space
+          buf.cancelInterims();
+          buf.queueState(fullTyped, false, true);
+        }
+
         ctx.totalPhrases++; ctx.totalWords += finalText.trim().split(/\s+/).filter(Boolean).length;
         ctx.logFn(finalText, 'phrase');
         ctx.updateStatus();
 
+        // Record phrase in history for scratch-that (with 2-min TTL)
+        buf.pushPhrase(finalText, fullTyped.length);
+
         // AI summarize
         if (ctx.config.aiEnabled && require('../ai').getAiApiKey()) {
-          ws._lastPhrase = fullTyped;
           ws._aiSeq = (ws._aiSeq || 0) + 1;
           const seq = ws._aiSeq;
           aiSummarize(finalText, ctx.config, ctx.logFn).then(improved => {
@@ -243,21 +223,24 @@ function createConnectionHandler(ctx) {
             if (ws.readyState !== WebSocket.OPEN) return;
             if (ws._aiSeq !== seq) return;
             const safeImproved = improved.trimStart().slice(0, 4000) + ' ';
-            // Use screenLength — it tracks what's actually on-screen across resets
-            const onScreenLen = oplog.screenLength();
-            if (onScreenLen > 0) deleteChars(onScreenLen);
-            typeOrClip(safeImproved);
-            ws._lastPhrase = safeImproved;
-            oplog.setScreenLength(safeImproved.length);
+            // Delete everything we own on screen, type the AI version
+            const onScreenLen = buf.screenLength();
+            if (onScreenLen > 0) {
+              runCmd(compoundCmd(onScreenLen, safeImproved, escape), () => {}, ctx.logFn);
+            } else {
+              runCmd(compoundCmd(0, safeImproved, escape), () => {}, ctx.logFn);
+            }
+            buf.setScreenLength(safeImproved.length);
+            // Update the last phrase in history so scratch-that removes the AI version
+            const lastPhrase = buf.peekPhrase();
+            if (lastPhrase) { lastPhrase.text = improved; lastPhrase.len = safeImproved.length; }
             ctx.logFn(`AI (${ctx.config.aiProvider}): ${improved}`, 'command');
           }).catch(() => {});
-        } else {
-          ws._lastPhrase = fullTyped;
         }
 
-        // Defer reset until queued ops finish — keeps nodes alive for drain
-        oplog.resetAfterDrain();
-        drainOps();
+        // Reset buffer for next phrase (after current ops drain)
+        buf.queueState('', false);
+        buf.drain(execOp);
       }
     });
 

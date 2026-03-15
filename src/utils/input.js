@@ -21,6 +21,12 @@ const BACKENDS = {
     name: 'xdotool',
     typeText: (text, esc) => `xdotool type --clearmodifiers -- '${esc(text)}'`,
     deleteChars: (n) => `xdotool key --clearmodifiers --repeat ${Math.min(n, 500)} BackSpace`,
+    compound: (delCount, text, esc) => {
+      const del = delCount > 0 ? `xdotool key --clearmodifiers --repeat ${Math.min(delCount, 500)} BackSpace` : null;
+      const typ = text ? `xdotool type --clearmodifiers -- '${esc(text)}'` : null;
+      if (del && typ) return `${del} && ${typ}`;
+      return del || typ || 'true';
+    },
     pressKey: (key, safeKey) => `xdotool key --clearmodifiers ${safeKey(key)}`,
     paste: () => `xdotool key --clearmodifiers ctrl+v`,
     clipboard: (text, cb) => {
@@ -33,7 +39,6 @@ const BACKENDS = {
     name: 'ydotool',
     typeText: (text, esc) => `ydotool type -- '${esc(text)}'`,
     deleteChars: (n) => {
-      // ydotool key takes keycodes; BackSpace = 14
       const cmds = [];
       let remaining = n;
       while (remaining > 0) {
@@ -43,6 +48,20 @@ const BACKENDS = {
         remaining -= batch;
       }
       return cmds.join(' && ');
+    },
+    compound: (delCount, text, esc) => {
+      const parts = [];
+      if (delCount > 0) {
+        let remaining = delCount;
+        while (remaining > 0) {
+          const batch = Math.min(remaining, 100);
+          const keys = Array(batch).fill('14:1 14:0').join(' ');
+          parts.push(`ydotool key ${keys}`);
+          remaining -= batch;
+        }
+      }
+      if (text) parts.push(`ydotool type -- '${esc(text)}'`);
+      return parts.length > 0 ? parts.join(' && ') : 'true';
     },
     pressKey: (key, safeKey) => {
       const keyMap = {
@@ -54,12 +73,10 @@ const BACKENDS = {
       };
       const mapped = keyMap[key] || keyMap[safeKey(key)];
       if (mapped) return `ydotool key ${mapped.includes(':') ? mapped : mapped + ':1 ' + mapped + ':0'}`;
-      // Fallback: try typing the key name as text
       return `ydotool type '${key}'`;
     },
     paste: () => 'ydotool key 29:1 47:1 47:0 29:0',
     clipboard: (text, cb) => {
-      // Try wl-copy first (Wayland), fall back to xclip
       const p = exec('wl-copy 2>/dev/null || xclip -selection clipboard', cb);
       p.stdin.write(text);
       p.stdin.end();
@@ -68,13 +85,28 @@ const BACKENDS = {
   osascript: {
     name: 'osascript',
     typeText: (text, esc) => {
-      // AppleScript: keystroke requires escaping backslashes and quotes
       const safe = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
       return `osascript -e 'tell application "System Events" to keystroke "${safe}"'`;
     },
     deleteChars: (n) => {
-      return `osascript -e 'tell application "System Events" to key code 51 using {} -- repeat ${Math.min(n, 500)} times' 2>/dev/null; ` +
-        `for i in $(seq 1 ${Math.min(n, 500)}); do osascript -e 'tell application "System Events" to key code 51'; done`;
+      const count = Math.min(n, 500);
+      // Single AppleScript with repeat loop — one process, not N
+      return `osascript -e 'tell application "System Events" to repeat ${count} times' -e 'key code 51' -e 'end repeat'`;
+    },
+    compound: (delCount, text, esc) => {
+      // Single osascript: delete N then type text
+      const parts = ['tell application "System Events"'];
+      if (delCount > 0) {
+        parts.push(`repeat ${Math.min(delCount, 500)} times`);
+        parts.push('key code 51');
+        parts.push('end repeat');
+      }
+      if (text) {
+        const safe = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        parts.push(`keystroke "${safe}"`);
+      }
+      parts.push('end tell');
+      return `osascript ${parts.map(p => `-e '${p}'`).join(' ')}`;
     },
     pressKey: (key) => {
       const keyMap = {
@@ -85,7 +117,6 @@ const BACKENDS = {
       };
       const mapped = keyMap[key];
       if (mapped) return `osascript -e 'tell application "System Events" to ${mapped}'`;
-      // For ctrl+ combos
       if (key.startsWith('ctrl+')) {
         const ch = key.slice(5);
         return `osascript -e 'tell application "System Events" to keystroke "${ch}" using command down'`;
@@ -102,13 +133,25 @@ const BACKENDS = {
   powershell: {
     name: 'powershell',
     typeText: (text) => {
-      // Escape for PowerShell string
       const safe = text.replace(/'/g, "''").replace(/`/g, '``');
       return `powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${safe}')"`;
     },
     deleteChars: (n) => {
       const bs = '{BS ' + Math.min(n, 500) + '}';
       return `powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${bs}')"`;
+    },
+    compound: (delCount, text) => {
+      // Single PowerShell invocation: delete then type
+      const parts = [`Add-Type -AssemblyName System.Windows.Forms`];
+      if (delCount > 0) {
+        const bs = '{BS ' + Math.min(delCount, 500) + '}';
+        parts.push(`[System.Windows.Forms.SendKeys]::SendWait('${bs}')`);
+      }
+      if (text) {
+        const safe = text.replace(/'/g, "''").replace(/`/g, '``');
+        parts.push(`[System.Windows.Forms.SendKeys]::SendWait('${safe}')`);
+      }
+      return `powershell -NoProfile -Command "${parts.join('; ')}"`;
     },
     pressKey: (key) => {
       const keyMap = {
@@ -207,6 +250,21 @@ function deleteCmd(n) {
   return _backend.deleteChars(n);
 }
 
+/**
+ * Build a compound "delete N then type text" command — single shell exec.
+ * Uses backend-native compound if available (osascript, powershell),
+ * falls back to && chaining (xdotool, ydotool).
+ */
+function compoundCmd(deleteCount, text, escapeFn) {
+  if (!_backend) return `echo "no input backend" >&2`;
+  if (_backend.compound) return _backend.compound(deleteCount, text, escapeFn);
+  // Fallback: chain delete + type
+  const del = deleteCount > 0 ? _backend.deleteChars(deleteCount) : null;
+  const typ = text ? _backend.typeText(text, escapeFn) : null;
+  if (del && typ) return `${del} && ${typ}`;
+  return del || typ || 'true';
+}
+
 /** Build a "press key" shell command. */
 function keyCmd(key, safeKeyFn) {
   if (!_backend) return `echo "no input backend" >&2`;
@@ -225,4 +283,4 @@ function toClipboard(text, cb) {
   _backend.clipboard(text, cb);
 }
 
-module.exports = { detect, getBackend, typeCmd, deleteCmd, keyCmd, pasteCmd, toClipboard, BACKENDS };
+module.exports = { detect, getBackend, typeCmd, deleteCmd, compoundCmd, keyCmd, pasteCmd, toClipboard, BACKENDS };
